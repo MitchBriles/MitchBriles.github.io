@@ -1,8 +1,33 @@
-<html>
-  <head>
-    <title>My Website</title>
-  </head>
-  <body>
-    <h1>Welcome To My Website!</h1>
-  </body>
+<!DOCTYPE html>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mitch Briles</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="cursor"></div>
+    <div>
+        <div class="container">
+            <h1>Mitch Briles</h1>
+            <p href="p1">Programmer, rock climber, nerd by trade.</p>
+            <a href="#projects" class="button">Projects</a>
+            <a href="skills.html" class="button">Skills</a>
+        </div>
+        <footer>
+            &copy; Mitch Briles 2024. All rights reserved.
+        </footer>
+    </div>
+    <script>
+        document.addEventListener('mousemove', e => {
+            const cursor = document.querySelector('.cursor');
+            cursor.style.left = e.pageX + 'px';
+            cursor.style.top = e.pageY + 'px';
+        });
+    </script>   
+</body>
 </html>
