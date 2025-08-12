@@ -4,23 +4,30 @@
     box-sizing: border-box;
     font-family: 'Jetbrains Mono', monospace;
 }
-/* Remove default link styling & apply theme colors */
-a {
+
+a:not(.button),
+a:not(.button):link,
+a:not(.button):visited,
+a:not(.button):active {
     color: #93c47d;
     text-decoration: none;
-    transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 
-a:hover {
+a:not(.button):hover {
     color: #2593a9;
     text-shadow: 0 0 8px #93c47d;
 }
 
-/* Make the contact info links stand out subtly */
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Contact info links */
 p a {
     font-weight: bold;
     font-size: 1.1rem;
 }
+
 body {
     display: flex;
     justify-content: center;

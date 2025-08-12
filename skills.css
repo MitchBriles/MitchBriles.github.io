@@ -73,3 +73,41 @@ img {
 		box-shadow: 0 0 20px 10px #93c47d;
 	}
 }
+.icon {
+    position: relative;
+    display: inline-block;
+    margin: 1px;
+}
+
+.icon img,
+.icon svg {
+    width: 40px;
+    height: 40px;
+    vertical-align: middle;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.icon::after {
+    content: attr(data-name);
+    position: absolute;
+    bottom: -33px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #2d2c2c;
+    color: #93c47d;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 0 5px #93c47d;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 999; /* Force tooltip above icon */
+}
+
+.icon:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-5px);
+}
