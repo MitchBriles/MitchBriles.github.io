@@ -4,6 +4,23 @@
     box-sizing: border-box;
     font-family: 'Jetbrains Mono', monospace;
 }
+/* Remove default link styling & apply theme colors */
+a {
+    color: #93c47d;
+    text-decoration: none;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+a:hover {
+    color: #2593a9;
+    text-shadow: 0 0 8px #93c47d;
+}
+
+/* Make the contact info links stand out subtly */
+p a {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
 body {
     display: flex;
     justify-content: center;
@@ -11,7 +28,7 @@ body {
     min-height: 100vh;
     background-color: #202020;
     color: #000000;
-    cursor: none;
+    /* cursor: none; */
 }
 .container {
     max-width: 800px;
@@ -48,7 +65,7 @@ p {
 }
 .button:hover {
     background-color: #418b6f;
-    cursor: none;
+    /* cursor: none; */
 }
 footer {
     color: #cccccc;

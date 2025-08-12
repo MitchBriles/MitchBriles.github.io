@@ -11,7 +11,7 @@ body {
     min-height: 100vh;
     background-color: #202020;
     color: #000000;
-    cursor: none;
+    /* cursor: none; */
 }
 .container {
     max-width: 600px;
