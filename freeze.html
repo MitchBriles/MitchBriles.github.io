@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[RFC] Respecting freeze semantics in backends</title>
+<style>
+  :root {
+    --bg: #fff;
+    --fg: #1f2328;
+    --accent: #0b62c4;
+    --code-bg: #f1f3f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a;
+      --fg: #e6e8eb;
+      --accent: #6cb1ff;
+      --code-bg: #23272d;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 40px 16px 64px;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 24px; }
+  h2 { font-size: 1.2rem; margin: 36px 0 12px; }
+  a { color: var(--accent); }
+  code {
+    font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+  li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>[RFC] Respecting freeze semantics in backends</h1>
+
+  <p>Hi.</p>
+
+  <p>LangRef says a <code>freeze</code> of <code>poison</code> or <code>undef</code> “returns an arbitrary, but <strong>fixed</strong>, value.” The middle-end uses this fact for some transformations and, for the most part, honors this rule.</p>
+
+  <h2>The problem</h2>
+  <p>On the other hand, backends do not generally respect <code>freeze</code> semantics. The SelectionDAG, FastISel, and GlobalISel selectors on AArch64, AMDGPU, RISC-V, and X86 all unconditionally lower <code>freeze</code>/<code>ISD::FREEZE</code>/<code>G_FREEZE</code> to a <code>COPY</code>. If the input to the <code>freeze</code> is <code>undef</code> or <code>poison</code>, what’s left is a <code>COPY</code> of <code>IMPLICIT_DEF</code>, which represents an <code>undef</code> value. ProcessImplicitDefs and the register coalescer then treat the <code>COPY</code> as undefined, and different uses can read different registers. The consequence is a long history of miscompiles including, but not limited to, these open issues:</p>
+  <p>
+    <a href="https://github.com/llvm/llvm-project/issues/58321">#58321</a>
+    <a href="https://github.com/llvm/llvm-project/issues/60429">#60429</a>
+    <a href="https://github.com/llvm/llvm-project/issues/144780">#144780</a>
+  </p>
+
+  <h2>Solutions</h2>
+  <p>Contributors have been aware of this issue since at least 2022, and a few ideas have been suggested over the years. Here are a few:</p>
+  <ol>
+    <li>Pick some value (say, 0) for <code>freeze(poison)</code> in ISel — Very safe, but unacceptable performance regressions in some cases.</li>
+    <li>Add a generic <code>FREEZE</code> MI opcode — Perhaps best for handling undefined lanes created after ISel, but probably the most work to implement without regressions.</li>
+    <li>Select <code>freeze(poison)</code> as <code>INIT_UNDEF</code> — I’ve been experimenting with this one. <code>INIT_UNDEF</code> is an existing generic pseudo that is a non-rematerializable definition. With some MachineCSE support, PeepholeOptimizer support, and a couple of other tweaks, this seems to do the trick with little to no performance regressions. If people are interested in this approach, let me know, and I can link to a patch.</li>
+  </ol>
+
+  <p>Regardless of which fix people prefer, I’m happy to code and submit it myself. Please let me know your thoughts!</p>
+</main>
+</body>
+</html>
