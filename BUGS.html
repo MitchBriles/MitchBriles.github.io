@@ -103,8 +103,8 @@
 </head>
 <body>
 <main>
-<h1>Bug reports</h1>
-<p>All twelve were found by differential fuzzing (<code>llvm-ir-mutator</code> + <code>backend-tv</code>/Alive2):</p>
+<h1>LLVM Backend Bugs (Some RISC-V, some target-independent)</h1>
+<p>Bugs found by <a href="https://github.com/regehr/alive2/tree/arm-tv">RISCV-TV</a>.</p>
 <ul><li>The first five come from our September runs.</li><li>The next five come from the fuzzer-found tests in <code>regehr-bugs/</code>, which all fail with backend-tv at <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a>.</li><li>The last two come from the 3-hour ohm run on 2026-10-08. They were reproduced at <a href="https://github.com/llvm/llvm-project/commit/32932727b33e8b5c04093eef51481713fbeb6823"><code>32932727b33e</code></a> (2026-10-08).</li></ul>
 <p>The others were reproduced with llc at <a href="https://github.com/llvm/llvm-project/commit/5c1c22673ce6f981a0f399409134576caaf24f87"><code>5c1c22673ce6</code></a> (2026-09-24). All compile for RISC-V:</p>
 <pre><code class="nohighlight">llc -mtriple=riscv64 -mattr=+rva23u64 -target-abi=lp64d reduced.ll -o -</code></pre>
@@ -116,7 +116,6 @@ qemu-riscv64 ./repro_single
 llubi repro.ll    # reference interpreter</code></pre>
 <p>The suggested fixes below are sketches written from reading the code. Only the RISC-V stack realignment fix has been built and tested.</p>
 <p>The four <code>denormal_fpenv</code> bugs rest on this LangRef text: "If the input mode is <code>preservesign</code>, or <code>positivezero</code>, a floating-point operation <strong>must</strong> treat any input denormal value as zero." Output flushing is optional ("It is not mandated that flushing to zero occurs"). So a non-flushed <em>result</em> is fine, but a result computed from a non-flushed <em>input</em> is wrong. Alive2 has modelled input flushing as mandatory since <a href="https://github.com/AliveToolkit/alive2/pull/1350">AliveToolkit/alive2#1350</a>. That is why the 40 denormal-only tests in <code>regehr-bugs/</code> pass on older builds and fail now. Each of the 40 verifies once <code>denormal_fpenv</code> is removed.</p>
-<div class="table"><table><thead><tr><th><code>regehr-bugs/</code> tests</th><th>Bug below</th></tr></thead><tbody><tr><td>33 constant operations: 12 <code>fcmp</code>, 6 <code>fmul</code>, 4 <code>fadd</code>, 4 <code>fsub</code>, 4 <code>frem</code>, 3 <code>fdiv</code></td><td>SelectionDAG FP constant folding</td></tr><tr><td>4: <code>1686ee59</code>, <code>1e325354</code>, <code>1fbd2e36</code>, <code>f5c735b8</code></td><td><code>x - 0.0</code> / <code>x + -0.0</code> identity folds</td></tr><tr><td>3: <code>15c5a597</code>, <code>2bad131b</code>, <code>70b8547d</code></td><td>RISC-V ignores the input mode</td></tr><tr><td><code>6b2ed310</code></td><td>RISC-V stack realignment. backend-tv's alarm here was a stack-model false alarm (<a href="TOOL_BUGS#bug-9">TOOL_BUGS #9</a>) that happened to land on a real bug; the miscompile was found by reading the asm.</td></tr><tr><td><code>2743204f</code>, <code>a7131871</code></td><td><code>fneg</code> of <code>fadd</code>/<code>fsub nsz</code>. <code>a7131871</code> also carries <code>denormal_fpenv</code>, but it fails without it.</td></tr><tr><td><code>c5b79f85</code></td><td>Not an LLVM bug; see <a href="TOOL_BUGS"><code>TOOL_BUGS.md</code></a> <a href="TOOL_BUGS#bug-6">#6</a></td></tr></tbody></table></div>
 <hr>
 <nav>
 <h2>Bugs</h2>
