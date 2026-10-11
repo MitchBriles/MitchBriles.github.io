@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLVM Bug Reports</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    --bg: #fff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --accent: #0b62c4;
+    --code-bg: #f1f3f5;
+    --rule: #e3e5e8;
+    --fixed: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a;
+      --fg: #e6e8eb;
+      --muted: #9aa3ad;
+      --accent: #6cb1ff;
+      --code-bg: #23272d;
+      --rule: #2c3036;
+      --fixed: #4ac26b;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 16px 64px;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 24px; }
+  h2 { font-size: 1.2rem; line-height: 1.35; margin: 0 0 12px; }
+  h3 { font-size: 1.05rem; line-height: 1.35; margin: 32px 0 12px; }
+  section, nav { margin-top: 48px; }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 40px 0; }
+  a { color: var(--accent); }
+  a:has(> code) { text-decoration-thickness: 1px; }
+  code {
+    font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    line-height: 1.45;
+  }
+  pre code, pre code.hljs {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+    overflow-wrap: normal;
+  }
+  ul, ol { padding-left: 1.4em; }
+  li { margin-bottom: 6px; }
+  li > pre { margin: 8px 0; }
+  .table { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+  th { white-space: nowrap; }
+  details { margin: 12px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 8px; }
+  details > :not(summary) { margin-left: 1.1em; }
+  .file { margin-top: 16px; margin-bottom: -8px; font: 0.82rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  .fixed {
+    display: inline-block;
+    vertical-align: 0.15em;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border: 1px solid var(--fixed);
+    border-radius: 4px;
+    color: var(--fixed);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    text-decoration: none;
+  }
+  .index li { margin-bottom: 4px; }
+  .index a:not(.fixed) { text-decoration: none; }
+  .index a:not(.fixed):hover { text-decoration: underline; }
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    details > :not(summary) { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>Bug reports</h1>
+<p>All twelve were found by differential fuzzing (<code>llvm-ir-mutator</code> + <code>backend-tv</code>/Alive2):</p>
+<ul><li>The first five come from our September runs.</li><li>The next five come from the fuzzer-found tests in <code>regehr-bugs/</code>, which all fail with backend-tv at <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a>.</li><li>The last two come from the 3-hour ohm run on 2026-10-08. They were reproduced at <a href="https://github.com/llvm/llvm-project/commit/32932727b33e8b5c04093eef51481713fbeb6823"><code>32932727b33e</code></a> (2026-10-08).</li></ul>
+<p>The others were reproduced with llc at <a href="https://github.com/llvm/llvm-project/commit/5c1c22673ce6f981a0f399409134576caaf24f87"><code>5c1c22673ce6</code></a> (2026-09-24). All compile for RISC-V:</p>
+<pre><code class="nohighlight">llc -mtriple=riscv64 -mattr=+rva23u64 -target-abi=lp64d reduced.ll -o -</code></pre>
+<p>Every directory under <code>bugs/</code> holds two files:</p>
+<ul><li><code>reduced.ll</code>: the minimal IR, where the bug is visible in the assembly.</li><li><code>repro.ll</code>: a runnable program. Build and run it with:</li></ul>
+<pre><code class="nohighlight">llc -mtriple=riscv64 -mattr=+rva23u64 -target-abi=lp64d repro.ll -o repro.s
+riscv64-linux-gnu-gcc -static -march=rva23u64 -mabi=lp64d repro.s -o repro_single
+qemu-riscv64 ./repro_single
+llubi repro.ll    # reference interpreter</code></pre>
+<p>The suggested fixes below are sketches written from reading the code. Only the RISC-V stack realignment fix has been built and tested.</p>
+<p>The four <code>denormal_fpenv</code> bugs rest on this LangRef text: "If the input mode is <code>preservesign</code>, or <code>positivezero</code>, a floating-point operation <strong>must</strong> treat any input denormal value as zero." Output flushing is optional ("It is not mandated that flushing to zero occurs"). So a non-flushed <em>result</em> is fine, but a result computed from a non-flushed <em>input</em> is wrong. Alive2 has modelled input flushing as mandatory since <a href="https://github.com/AliveToolkit/alive2/pull/1350">AliveToolkit/alive2#1350</a>. That is why the 40 denormal-only tests in <code>regehr-bugs/</code> pass on older builds and fail now. Each of the 40 verifies once <code>denormal_fpenv</code> is removed.</p>
+<div class="table"><table><thead><tr><th><code>regehr-bugs/</code> tests</th><th>Bug below</th></tr></thead><tbody><tr><td>33 constant operations: 12 <code>fcmp</code>, 6 <code>fmul</code>, 4 <code>fadd</code>, 4 <code>fsub</code>, 4 <code>frem</code>, 3 <code>fdiv</code></td><td>SelectionDAG FP constant folding</td></tr><tr><td>4: <code>1686ee59</code>, <code>1e325354</code>, <code>1fbd2e36</code>, <code>f5c735b8</code></td><td><code>x - 0.0</code> / <code>x + -0.0</code> identity folds</td></tr><tr><td>3: <code>15c5a597</code>, <code>2bad131b</code>, <code>70b8547d</code></td><td>RISC-V ignores the input mode</td></tr><tr><td><code>6b2ed310</code></td><td>RISC-V stack realignment. backend-tv's alarm here was a stack-model false alarm (<a href="TOOL_BUGS#bug-9">TOOL_BUGS #9</a>) that happened to land on a real bug; the miscompile was found by reading the asm.</td></tr><tr><td><code>2743204f</code>, <code>a7131871</code></td><td><code>fneg</code> of <code>fadd</code>/<code>fsub nsz</code>. <code>a7131871</code> also carries <code>denormal_fpenv</code>, but it fails without it.</td></tr><tr><td><code>c5b79f85</code></td><td>Not an LLVM bug; see <a href="TOOL_BUGS"><code>TOOL_BUGS.md</code></a> <a href="TOOL_BUGS#bug-6">#6</a></td></tr></tbody></table></div>
+<hr>
+<nav>
+<h2>Bugs</h2>
+<ol class="index">
+<li><a href="#frem-nsz-signed-zero">[SelectionDAG] <code>frem nsz</code> by 2^n drops the sign of a zero result</a></li>
+<li><a href="#freeze-undef-split">[CodeGen] Two uses of <code>freeze undef</code> observe different values</a></li>
+<li><a href="#copysign-fpround-nan-sign">[SelectionDAG] <code>copysign(x, fptrunc(y)) -&gt; copysign(x, y)</code> with a multi-use <code>fptrunc</code> gives a NaN with two observed signs</a></li>
+<li><a href="#memset-i32-len-sext">[SelectionDAG] Lowering of memset.i32 sign-extends length</a> <a class="fixed" href="https://github.com/llvm/llvm-project/pull/229883" title="Fixed by #229883">FIXED</a></li>
+<li><a href="#freeze-subbyte-load-assertzext">[DAGCombiner] <code>freeze</code> of a sub-byte load loses the truncation (AssertZext after freeze is unsound for non-byte widths)</a></li>
+<li><a href="#riscv-stack-realign-4g">[RISCV] Stack realignment to 2^32 bytes emits <code>andi sp, sp, 0</code></a> <a class="fixed" href="https://github.com/llvm/llvm-project/pull/228225" title="Fixed by #228225">FIXED</a></li>
+<li><a href="#fneg-nsz">[SelectionDAG] <code>getNegatedExpression</code> uses <code>nsz</code> on <code>fadd</code>/<code>fsub</code> to fold away an <code>fneg</code>, flipping the sign of a zero result</a></li>
+<li><a href="#dag-constfold-denormal">[SelectionDAG] FP constant folding ignores <code>denormal_fpenv</code> input flushing</a></li>
+<li><a href="#identity-fold-denormal">[InstSimplify][DAGCombiner] <code>x - 0.0 -&gt; x</code> and <code>x + -0.0 -&gt; x</code> ignore <code>denormal_fpenv</code> input flushing</a></li>
+<li><a href="#riscv-denormal-input-mode">[RISCV] <code>denormal_fpenv</code> input flushing modes are silently ignored</a></li>
+<li><a href="#store-subbyte-undef">[InstCombine][DAGCombiner] <code>store i1 undef</code> is deleted, but a non-byte-sized store must zero the rest of the byte</a></li>
+<li><a href="#riscv-vsetvli-i32-rv64">[RISCV] <code>llvm.riscv.vsetvli</code> with a non-XLEN integer type crashes type legalization</a></li>
+<li><a href="#prior-art">Prior art</a></li>
+</ol>
+</nav>
+<section id="frem-nsz-signed-zero">
+<h2>[SelectionDAG] <code>frem nsz</code> by 2^n drops the sign of a zero result</h2>
+<p><code>bugs/frem-nsz-signed-zero/</code></p>
+<pre><code class="language-llvm">define float @f(float %a) {
+  %r = frem nsz float %a, 1.000000e+00
+  ret float %r
+}</code></pre>
+<pre><code class="language-riscv">fround.s  fa5, fa0, rtz
+fsub.s    fa0, fa0, fa5
+# no fsgnj.s</code></pre>
+<p><strong>Expected result.</strong> For <code>x = -2^65</code>, <code>fmod(x, 1.0)</code> is <code>-0.0</code>, because the result takes the dividend's sign. <code>nsz</code> does not permit anything else here. LangRef says: "the sign bit of 0.0 or -0.0 <strong>input operands</strong> can be non-deterministically flipped". Neither operand is a zero, and <code>frem</code> defines no exception for its result.</p>
+<p><strong>Actual result.</strong> <code>x - trunc(x)</code> evaluates to <code>+0.0</code>. Without <code>nsz</code>, llc appends <code>fsgnj.s fa0, fa5, fa0</code> and the result is correct.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> prints <code>80000000</code> under llubi and <code>00000000</code> from the compiled program.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@x = dso_local global float 0xC014000000000000
+@fmt = private unnamed_addr constant [6 x i8] c&quot;%08x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define dso_local i32 @main() {
+  %a = load volatile float, ptr @x
+  %r = frem nsz float %a, 1.000000e+00
+  %bits = bitcast float %r to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %bits)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p><code>DAGCombiner::visitFREM</code> computes <code>NeedsCopySign = !DAG.canIgnoreSignBitOfZero(SDValue(N, 0)) &amp;&amp; ...</code>. The <code>SDValue</code> overload <code>SelectionDAG::canIgnoreSignBitOfZero</code> returns true as soon as <code>Op</code> has <code>nsz</code>. That treats <code>nsz</code> on the defining node as a license over its <em>result</em>. The <code>SDUse</code> overload, which checks the user's flags, is correct.</p>
+</details>
+<p><strong>Scope.</strong> The bug is target-independent. x86-64 (with SSE4.1) and AArch64 drop their sign fix-up the same way. It needs a legal <code>FTRUNC</code> and a power-of-two divisor.</p>
+<details><summary>Suggested fix</summary>
+<ul><li>Minimal: in <code>visitFREM</code>, decide <code>NeedsCopySign</code> from the users only, not from the <code>frem</code>'s own flags:
+<pre><code class="language-cpp">bool NeedsCopySign =
+    !DAG.cannotBeOrderedNegativeFP(N0) &amp;&amp;
+    !all_of(N-&gt;uses(), [&amp;](SDUse &amp;U) { return DAG.canIgnoreSignBitOfZero(U); });</code></pre></li><li>Principled: remove the <code>nsz</code> early return from the <code>SDValue</code> overload of <code>canIgnoreSignBitOfZero</code>. Since <a href="https://github.com/llvm/llvm-project/pull/180906">#180906</a>, <code>nsz</code> on a node grants nothing about its result.
+<ul><li>The one caller that legitimately relies on it is the <code>sitofp</code>/<code>uitofp</code> fold. LangRef makes a zero result's sign non-deterministic there under <code>nsz</code>, so that caller should check the flag itself.</li><li>The other callers need auditing: the <code>fadd</code>/<code>fsub</code> zero folds and <code>X/sqrt(X)</code>.</li></ul></li></ul>
+</details>
+</section>
+<section id="freeze-undef-split">
+<h2>[CodeGen] Two uses of <code>freeze undef</code> observe different values</h2>
+<p><code>bugs/freeze-undef-split/</code></p>
+<pre><code class="language-llvm">define i32 @f() {
+  %w = freeze i32 undef
+  %p = call i32 @llvm.ctpop.i32(i32 %w)
+  %r = call i32 @llvm.smin.i32(i32 %w, i32 %p)
+  ret i32 %r
+}</code></pre>
+<pre><code class="language-riscv">cpopw   a0, a0         # overwrites w with ctpop(w)
+sext.w  a1, a0         # second use of w reads ctpop(w)
+min     a0, a1, a0     # a0 = min(ctpop(w), ctpop(w))</code></pre>
+<p><strong>Expected result.</strong> <code>freeze</code> returns one fixed value, so the result is <code>smin(w, ctpop(w))</code>. That is never 32: if <code>w &gt;= 0</code> then <code>ctpop(w) &lt;= 31</code>, and if <code>w &lt; 0</code> the result is <code>w</code>.</p>
+<p><strong>Actual result.</strong> The code returns <code>ctpop</code> of whatever <code>a0</code> held on entry, which is 32 when the low 32 bits of <code>a0</code> are all ones.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> passes <code>-1</code> in <code>a0</code> through an unused argument. The compiled program prints <strong>32</strong>. llubi prints <code>smin(w, ctpop(w))</code> for whatever value it picks for <code>w</code>, so any value but 32.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@fmt = private unnamed_addr constant [4 x i8] c&quot;%d\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define i32 @f(i32 %unused) noinline {
+  %w = freeze i32 undef
+  %p = call i32 @llvm.ctpop.i32(i32 %w)
+  %r = call i32 @llvm.smin.i32(i32 %w, i32 %p)
+  ret i32 %r
+}
+
+define i32 @main() {
+  %r = call i32 @f(i32 -1)
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %r)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p>The MIR after isel is correct: one <code>IMPLICIT_DEF</code> and two reads of a single vreg. Then:</p>
+<ol><li><code>detect-dead-lanes</code> marks both reads <code>undef</code>.</li><li><code>processimpdefs</code> deletes the <code>IMPLICIT_DEF</code>.</li><li>With no live range tying the two reads together, the scheduler hoists <code>CPOPW</code>, and the greedy allocator assigns its def to the register the second read uses.</li></ol>
+<p><a href="https://github.com/llvm/llvm-project/pull/222832">#222832</a> fixed this pattern only for tied operands. That fix is in the tested build, and the bug still reproduces.</p>
+<p>The underlying reason is that <code>SelectionDAGISel::Select_FREEZE</code> lowers <code>FREEZE</code> to a plain <code>COPY</code>. Its comment says: "We don't have FREEZE pseudo-instruction in MachineInstr-level now". After isel, a frozen <code>undef</code> is indistinguishable from a plain one, so machine passes may treat each read independently.</p>
+</details>
+<details><summary>Suggested fix</summary>
+<ul><li>Simplest: in <code>DAGCombiner::visitFREEZE</code>, fold <code>freeze(undef)</code> and <code>freeze(poison)</code> to a zero constant of the same type. Any fixed value is a legal choice, and zero is free on RISC-V (<code>x0</code>). No <code>IMPLICIT_DEF</code> then reaches MIR from a <code>freeze</code>.</li><li>General: add a <code>FREEZE</code> machine pseudo, as that TODO anticipates. This also covers values that only become <code>undef</code> after legalization.</li></ul>
+<p>Keeping every multi-reader <code>IMPLICIT_DEF</code> alive in DetectDeadLanes/ProcessImplicitDefs would also work, but it would pessimize ordinary <code>undef</code>, which can't be told apart after isel.</p>
+</details>
+</section>
+<section id="copysign-fpround-nan-sign">
+<h2>[SelectionDAG] <code>copysign(x, fptrunc(y)) -&gt; copysign(x, y)</code> with a multi-use <code>fptrunc</code> gives a NaN with two observed signs</h2>
+<p><code>bugs/copysign-fpround-nan-sign/</code></p>
+<pre><code class="language-llvm">define half @f(half %a, float %b, ptr %p) {
+  %c = fptrunc float %b to half
+  store half %c, ptr %p
+  %t = call half @llvm.copysign.f16(half %a, half %c)
+  ret half %t
+}</code></pre>
+<pre><code class="language-riscv">fmv.x.w   a1, fa1
+srli      a1, a1, 31      # copysign takes the sign from %b ...
+...
+fcvt.h.s  fa5, fa1        # ... but the stored %c comes from fcvt, which gives +qNaN
+fsh       fa5, 0(a0)</code></pre>
+<p><strong>Expected result.</strong> <code>%c</code> is a single value. If <code>fptrunc</code> yields a NaN, LangRef lets its sign be non-deterministic, but whatever sign it picks, <code>sign(%t)</code> must equal the sign of the stored <code>%c</code>.</p>
+<p><strong>Actual result.</strong> For a negative-NaN <code>%b</code>, the store writes <code>+qNaN</code> (<code>0x7e00</code>) while <code>%t</code> is negative.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> prints the stored <code>%c</code> and the returned <code>copysign(+0, %c)</code>.</p>
+<ul><li>Compiled: <code>7e00 8000</code>. The stored value is positive, but the copysign result is <code>-0</code>.</li><li>llubi: <code>fe00 8000</code>, which is consistent.</li></ul>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@b = dso_local global float 0xFFF8000000000000
+@out = dso_local global half 0xH0000
+@fmt = private unnamed_addr constant [11 x i8] c&quot;%04x %04x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+declare half @llvm.copysign.f16(half, half)
+
+define half @f(half %a, float %b) noinline {
+  %c = fptrunc float %b to half
+  store half %c, ptr @out
+  %t = call half @llvm.copysign.f16(half %a, half %c)
+  ret half %t
+}
+
+define i32 @main() {
+  %b = load volatile float, ptr @b
+  %t = call half @f(half 0xH0000, float %b)
+  %c = load half, ptr @out
+  %cb = bitcast half %c to i16
+  %tb = bitcast half %t to i16
+  %c32 = zext i16 %cb to i32
+  %t32 = zext i16 %tb to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %c32, i32 %t32)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p><code>DAGCombiner::visitFCOPYSIGN</code> performs this fold unconditionally (<code>CanCombineFCOPYSIGN_EXTEND_ROUND</code>). This lets the <code>copysign</code> and the other users of the cast see different NaN signs. The same fold also rewrites <code>fp_extend</code>; I have not tested that form.</p>
+</details>
+<details><summary>Suggested fix</summary>
+<p>Guard the fold:</p>
+<pre><code class="language-cpp">if (CanCombineFCOPYSIGN_EXTEND_ROUND(N) &amp;&amp;
+    (N1.hasOneUse() || DAG.isKnownNeverNaN(N1.getOperand(0))))
+  return DAG.getNode(ISD::FCOPYSIGN, DL, VT, N0, N1.getOperand(0));</code></pre>
+<ul><li>With one use, only the <code>copysign</code> observes the cast's sign. A NaN's sign is already non-deterministic, so taking <code>y</code>'s sign is a legal choice.</li><li>If <code>y</code> is never NaN, the cast preserves its sign, so extra uses are fine.</li></ul>
+</details>
+</section>
+<section id="memset-i32-len-sext">
+<h2>[SelectionDAG] Lowering of memset.i32 sign-extends length <a class="fixed" href="https://github.com/llvm/llvm-project/pull/229883" title="Fixed by #229883">FIXED</a></h2>
+<p><code>bugs/memset-i32-len-sext/</code></p>
+<pre><code class="language-llvm">define void @f(ptr %p) {
+  call void @llvm.memset.p0.i32(ptr %p, i8 0, i32 -2147483648, i1 false)
+  ret void
+}</code></pre>
+<pre><code class="language-riscv">lui   a2, 524288      # a2 = 0xFFFFFFFF80000000 on RV64
+li    a1, 0
+call  memset</code></pre>
+<p><strong>Spec status.</strong> LangRef says only that <code>len</code> is "an integer argument specifying the number of bytes to fill". It does not state a signedness, and it lists no UB for large or negative lengths. The only UB clause is "if <code>&lt;len&gt;</code> is not a well-defined value", and "well defined" is a LangRef term meaning no undef bits and not poison. So <code>i32 0x80000000</code> is a fully defined operand. Every other in-tree interpretation reads it as unsigned:</p>
+<ul><li><code>SelectionDAG::getMemset</code>'s inline path: <code>ConstantSize-&gt;getZExtValue()</code>.</li><li><code>LowerMemIntrinsics</code> (memset expanded as a loop): the known-size path uses <code>Len-&gt;getZExtValue()</code>, and the runtime loop in <code>insertLoopExpansion</code> is bounded by <code>CreateICmpULT</code>.</li><li>llubi: <code>LengthInt.getZExtValue()</code>, and it reports "length overflows uint64_t".</li><li>Alive2: treats <code>len</code> as unsigned.</li></ul>
+<p>The libcall path is the only one that differs, and it doesn't choose a signed reading either. It leaves the upper bits unspecified. The same IR therefore fills 2^31 bytes when LLVM expands memset itself, and about 2^64 bytes when it calls libc. If lengths of 2^31 or more are meant to be UB, LangRef should say so.</p>
+<p><strong>Expected result</strong> (unsigned, as above). <code>0x80000000</code> means 2^31 bytes, and libc <code>memset</code> takes a 64-bit <code>size_t</code>, so the caller should pass <code>0x0000000080000000</code>.</p>
+<p><strong>Actual result.</strong> <code>memset</code> receives <code>0xFFFFFFFF80000000</code> (about 2^64 bytes) and writes far past the destination. This affects every <code>i32</code> length of 2^31 or more, constant or runtime. For a runtime length, the <code>i32</code> register is passed through unchanged. The RV64 psABI keeps 32-bit values sign-extended in registers, so the upper half is a copy of bit 31.</p>
+<p><strong>Impact.</strong> Probably low. Frontends emit <code>size_t</code>-typed lengths (<code>i64</code> on 64-bit targets), so this needs an <code>i32</code> memset of 2 GiB or more on a 64-bit target.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> mallocs 2^31+16 bytes, memsets exactly 2^31 of them through an <code>i32</code> length, and reads the last byte back. This is in bounds and must print <code>1</code>.</p>
+<ul><li>Compiled: overruns the buffer. Under a 4 GiB memory cap it is killed.</li><li>Control (the same program with the length explicitly <code>zext</code>ed to <code>i64</code>): prints <code>1</code> under the same cap.</li><li>llubi cannot model a 2 GiB allocation, so it is not a witness here.</li></ul>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@len = dso_local global i32 -2147483648
+@fmt = private unnamed_addr constant [4 x i8] c&quot;%d\0A\00&quot;
+
+declare ptr @malloc(i64)
+declare i32 @printf(ptr, ...)
+declare void @llvm.memset.p0.i32(ptr, i8, i32, i1)
+
+define i32 @main() {
+  %p = call ptr @malloc(i64 2147483664)
+  %n = load volatile i32, ptr @len
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %n)
+  call void @llvm.memset.p0.i32(ptr %p, i8 1, i32 %n, i1 false)
+  %last = getelementptr i8, ptr %p, i64 2147483647
+  %v = load i8, ptr %last
+  %v32 = zext i8 %v to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %v32)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<ul><li><code>SelectionDAGBuilder</code> passes the <code>i32</code> length to <code>SelectionDAG::getMemset</code> unchanged.</li><li><code>getMemset</code> builds the libcall argument as <code>Args.emplace_back(Size, DL.getIntPtrType(Ctx))</code>, i.e. an <code>i32</code> node for an <code>i64</code> parameter, with neither <code>IsZExt</code> nor <code>IsSExt</code> set.</li><li><code>LowerCallTo</code> therefore extends it with <code>ANY_EXTEND</code>, leaving the upper 32 bits unspecified.</li><li>The inline path in the same function already treats the length as unsigned (<code>ConstantSize-&gt;getZExtValue()</code>).</li></ul>
+</details>
+<p><strong>Scope.</strong> <code>memcpy</code> and <code>memmove</code> are lowered the same way; I've checked their assembly but haven't run them. On x86-64 and AArch64 the upper bits are also left to the incoming register (for example x86 <code>kill: def $edx ... def $rdx</code>). They are only correct when those bits happen to be zero, which their ABIs don't guarantee; this is inferred, not run.</p>
+<details><summary>Suggested fix</summary>
+<p><code>SelectionDAG::getMemcpy</code>, <code>getMemmove</code> and <code>getMemset</code> all build the libcall argument as <code>Args.emplace_back(Size, ...getIntPtrType(...))</code>. Zero-extend the size first in each:</p>
+<pre><code class="language-cpp">Size = getZExtOrTrunc(Size, dl, TLI-&gt;getPointerTy(getDataLayout()));</code></pre>
+<p>Marking the argument entry <code>IsZExt</code> would do the same thing. If lengths of 2^31 or more are instead meant to be UB, the fix is one sentence in LangRef's <code>memset</code>/<code>memcpy</code>/<code>memmove</code> sections, and the code can stay.</p>
+</details>
+</section>
+<section id="freeze-subbyte-load-assertzext">
+<h2>[DAGCombiner] <code>freeze</code> of a sub-byte load loses the truncation (AssertZext after freeze is unsound for non-byte widths)</h2>
+<p><code>bugs/freeze-subbyte-load-assertzext/</code></p>
+<pre><code class="language-llvm">define i32 @f(ptr %p) {
+  %v = load i1, ptr %p
+  %w = freeze i1 %v
+  %z = zext i1 %w to i32
+  ret i32 %z
+}</code></pre>
+<pre><code class="language-riscv">lbu  a0, 0(a0)       # no andi a0, a0, 1
+ret</code></pre>
+<p><strong>Expected result.</strong> Since <a href="https://github.com/llvm/llvm-project/pull/180739">#180739</a> (2026-03-10), LangRef says a non-byte-sized load "behaves like a byte-sized load followed by a <code>trunc nuw</code>". If the byte holds <code>0x20</code>, <code>%v</code> is poison, <code>freeze</code> makes it 0 or 1, and <code>%z</code> is 0 or 1.</p>
+<p><strong>Actual result.</strong> The raw byte is returned.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> stores <code>i8 32</code> into the global and then runs the function above on it. The compiled program prints <strong>32</strong>; llubi prints <code>0</code>.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@G = dso_local global i8 32
+@fmt = private unnamed_addr constant [4 x i8] c&quot;%d\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define i32 @f() noinline {
+  %v = load i1, ptr @G
+  %w = freeze i1 %v
+  %z = zext i1 %w to i32
+  ret i32 %z
+}
+
+define i32 @main() {
+  %r = call i32 @f()
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %r)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<ul><li>The DAG rewrites <code>zero_extend(freeze(load i1))</code> into <code>AssertZext(freeze(zextload i64 from i1), i1)</code>.</li><li><code>reduceLoadWidth</code> looks through the <code>freeze</code> and re-wraps it with <code>AssertZext ExtVT</code> (<code>if (FreezeNode) { ... if (ExtType == ISD::ZEXTLOAD) ... AssertZext ...</code>).</li><li>For a byte-multiple <code>ExtVT</code> the assertion is true. For <code>i1</code>/<code>i2</code>, the <code>zextload</code> is a plain byte load that keeps the upper bits. The assertion is therefore false once memory holds anything except 0/1, and the <code>and 1</code> is dropped.</li><li>Related: <a href="https://github.com/llvm/llvm-project/pull/218454">#218454</a> ("freeze(load) can never be dropped").</li></ul>
+<p>The fuzzer also hit this with <code>i2</code> loads, and on 2026-10-08 with <code>i3</code> through <code>inttoptr</code> (an implicit zext). <code>load i3; freeze; zext</code> compiles to a bare <code>lbu</code> on RISC-V, <code>movzbl</code> on x86-64 and <code>ldrb</code> on AArch64. It affects every non-byte width, not just <code>i1</code>/<code>i2</code>, and every target I tried. Without the <code>freeze</code> the same bare byte load is correct, because an out-of-range byte makes the load poison.</p>
+</details>
+<details><summary>Suggested fix</summary>
+<p>In <code>reduceLoadWidth</code>, only look through a <code>freeze</code> when the narrowed type is byte-sized:</p>
+<pre><code class="language-cpp">if (N0.getOpcode() == ISD::FREEZE) {
+  if (!ExtVT.isByteSized())
+    return SDValue();
+  FreezeNode = N0;
+  N0 = N0.getOperand(0);
+}</code></pre>
+<p>Dropping only the <code>AssertZext</code> should not be enough. A <code>zextload</code> from <code>i1</code> is selected as a plain byte load, so the frozen value would still carry the upper bits, and nothing masks them. Before <a href="https://github.com/llvm/llvm-project/pull/189317">#189317</a> the <code>freeze</code> blocked this fold entirely. I have not checked whether the output before <a href="https://github.com/llvm/llvm-project/pull/189317">#189317</a> was correct.</p>
+</details>
+</section>
+<section id="riscv-stack-realign-4g">
+<h2>[RISCV] Stack realignment to 2^32 bytes emits <code>andi sp, sp, 0</code> <a class="fixed" href="https://github.com/llvm/llvm-project/pull/228225" title="Fixed by #228225">FIXED</a></h2>
+<p><code>bugs/riscv-stack-realign-4g/</code> (from <code>regehr-bugs/6b2ed310</code>)</p>
+<pre><code class="language-llvm">define void @f() {
+  %1 = alloca i1, align 4294967296
+  %2 = load i1, ptr %1, align 4294967296
+  store i1 false, ptr %1, align 4294967296
+  ret void
+}</code></pre>
+<pre><code class="language-riscv">addi   s0, sp, 496
+bseti  a0, zero, 33
+addi   a0, a0, -496
+sub    sp, sp, a0
+andi   sp, sp, 0         # sp = 0
+bseti  a0, zero, 32
+add    a0, a0, sp
+sb     zero, 0(a0)       # store to address 2^32</code></pre>
+<p><strong>Expected result.</strong> 2^32 is the largest alignment LLVM allows (<code>Value::MaxAlignmentExponent</code>), so the IR is valid. <code>sp</code> should be rounded down to a multiple of 2^32, as x86-64 (<code>andq $-4294967296, %rsp</code>) and AArch64 (<code>and sp, x9, #0xffffffff00000000</code>) do.</p>
+<p><strong>Actual result.</strong> <code>sp</code> is set to 0, and the store goes to address 2^32.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> calls <code>@f</code> and then prints <code>ok</code>. The frame needs about 8 GiB of stack, so qemu's default 8 MiB stack segfaults with or without the bug. Give it a 12 GiB stack, as a byte count (<code>-s 12G</code> is misparsed as 128 KiB):</p>
+<pre><code class="nohighlight">qemu-riscv64 -s 12884901888 ./repro_single</code></pre>
+<ul><li>Buggy (<code>andi sp, sp, 0</code>): SIGSEGV (exit 139).</li><li>With the fix below: prints <code>ok</code>.</li><li>llubi prints <code>ok</code>.</li></ul>
+<p>The stack is reserved but barely touched, so this needs little real memory.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@fmt = private unnamed_addr constant [4 x i8] c&quot;ok\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define void @f() noinline {
+  %a = alloca i8, align 4294967296
+  store volatile i8 0, ptr %a
+  ret void
+}
+
+define i32 @main() {
+  call void @f()
+  call i32 (ptr, ...) @printf(ptr @fmt)
+  ret i32 0
+}</code></pre>
+</details>
+<p><strong>backend-tv.</strong> It cannot detect this bug. On <code>regehr/arm-tv</code> it flags the buggy and the fixed code alike, because its stack model is too small for any realignment of 1024 or more (<a href="TOOL_BUGS"><code>TOOL_BUGS.md</code></a> <a href="TOOL_BUGS#bug-9">#9</a>). The fuzzer only reported this case because of that false alarm; the miscompile itself was found by reading the asm. On <code>arm-tv-fuzzing</code> the case gets <code>Stack frame too large</code>. Use the qemu run above.</p>
+<details><summary>Cause</summary>
+<p><code>RISCVFrameLowering::emitPrologue</code> (<code>RISCVFrameLowering.cpp:1238</code>):</p>
+<pre><code class="language-cpp">if (isInt&lt;12&gt;(-(int)MaxAlignment.value())) {
+  BuildMI(MBB, MBBI, DL, TII-&gt;get(RISCV::ANDI), SPReg)
+      .addReg(SPReg)
+      .addImm(-(int)MaxAlignment.value())</code></pre>
+<p><code>MaxAlignment.value()</code> is a <code>uint64_t</code>, and <code>(int)4294967296</code> is 0. So <code>isInt&lt;12&gt;(0)</code> holds and the <code>ANDI</code> gets immediate 0. Smaller alignments are unaffected: 2^31 becomes <code>INT_MIN</code>, which fails <code>isInt&lt;12&gt;</code>, so it takes the correct <code>SRLI</code>/<code>SLLI</code> path.</p>
+</details>
+<p><strong>Scope.</strong> RISC-V only, and only for an alignment of exactly 2^32. Impact is low.</p>
+<details><summary>Suggested fix</summary>
+<p>Tested: with it, llc emits <code>srli a0, sp, 32; slli sp, a0, 32</code> and the qemu run prints <code>ok</code>. Do the negation in 64 bits:</p>
+<pre><code class="language-cpp">int64_t NegAlign = -(int64_t)MaxAlignment.value();
+if (isInt&lt;12&gt;(NegAlign)) {
+  BuildMI(MBB, MBBI, DL, TII-&gt;get(RISCV::ANDI), SPReg)
+      .addReg(SPReg)
+      .addImm(NegAlign)</code></pre>
+</details>
+</section>
+<section id="fneg-nsz">
+<h2>[SelectionDAG] <code>getNegatedExpression</code> uses <code>nsz</code> on <code>fadd</code>/<code>fsub</code> to fold away an <code>fneg</code>, flipping the sign of a zero result</h2>
+<p><code>bugs/fneg-nsz/</code> (from <code>regehr-bugs/2743204f</code> and <code>regehr-bugs/a7131871</code>)</p>
+<pre><code class="language-llvm">define float @f(float %x) {
+  %s = fsub nsz float %x, 4.000000e+00
+  %n = fneg float %s
+  ret float %n
+}
+
+define float @g(float %x) {
+  %s = fadd nsz float %x, 4.000000e+00
+  %n = fneg float %s
+  ret float %n
+}</code></pre>
+<pre><code class="language-riscv">f:  fli.s   fa5, 4.0
+    fsub.s  fa0, fa5, fa0        # 4.0 - x
+g:  fli.s   fa5, 4.0
+    fneg.s  fa5, fa5
+    fsub.s  fa0, fa5, fa0        # -4.0 - x</code></pre>
+<p><strong>Expected result.</strong> For <code>f(4.0)</code>, <code>4.0 - 4.0</code> is <code>+0.0</code> and <code>fneg</code> makes it <code>-0.0</code>. <code>nsz</code> does not permit anything else. LangRef (since <a href="https://github.com/llvm/llvm-project/pull/180906">#180906</a>) says only "the sign bit of 0.0 or -0.0 <strong>input operands</strong> can be non-deterministically flipped", and neither input is a zero. <code>g(-4.0)</code> is the same: <code>-(-4.0 + 4.0)</code> is <code>-0.0</code>.</p>
+<p><strong>Actual result.</strong> <code>4.0 - x</code> and <code>-4.0 - x</code> both give <code>+0.0</code>. Without <code>nsz</code>, llc emits <code>fsub.s</code> followed by <code>fneg.s</code>, which is correct.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> prints <code>f(4.0)</code> and <code>g(-4.0)</code>. The compiled program prints <code>00000000</code> twice; llubi prints <code>80000000</code> twice.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@x = dso_local global float 4.000000e+00
+@fmt = private unnamed_addr constant [6 x i8] c&quot;%08x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define float @f(float %x) noinline {
+  %s = fsub nsz float %x, 4.000000e+00
+  %n = fneg float %s
+  ret float %n
+}
+
+define float @g(float %x) noinline {
+  %s = fadd nsz float %x, 4.000000e+00
+  %n = fneg float %s
+  ret float %n
+}
+
+define i32 @main() {
+  %x = load volatile float, ptr @x
+  %r = call float @f(float %x)
+  %b = bitcast float %r to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %b)
+  %nx = fneg float %x
+  %r2 = call float @g(float %nx)
+  %b2 = bitcast float %r2 to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %b2)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p><code>TargetLowering::getNegatedExpression</code> (<code>TargetLowering.cpp</code>):</p>
+<ul><li>The FSUB case folds <code>fneg (fsub X, Y) -&gt; fsub Y, X</code>. It is guarded by <code>if (!Flags.hasNoSignedZeros()) break;</code> with the comment "We can't turn -(A-B) into B-A when we honor signed zeros".</li><li>The FADD case folds <code>fneg (fadd X, Y) -&gt; fsub (fneg X), Y</code> behind the same check.</li></ul>
+<p>In both, <code>Flags</code> belongs to the <code>fadd</code>/<code>fsub</code>, so the <code>nsz</code> on the arithmetic node is read as a license over the sign of its <em>result</em>. That was the old <code>nsz</code> meaning. The rewrites differ from the original only when the result is a zero coming from nonzero inputs (<code>X == Y</code> for fsub, <code>X == -Y</code> for fadd), and there the input-only <code>nsz</code> grants nothing. This is the same stale reading as the <code>frem nsz</code> bug above.</p>
+<p>One sub-fold is still correct: <code>fneg (fsub 0, Y) -&gt; Y</code>, because <code>nsz</code> may flip the zero <em>input</em> to <code>-0.0</code>, and <code>-(-0.0 - Y)</code> is <code>Y</code>.</p>
+</details>
+<p><strong>Scope.</strong> Target-independent. x86-64 (<code>subss</code>) and AArch64 (<code>fsub s0, s1, s0</code>) emit the same reversed subtraction. <code>regehr-bugs/a7131871</code>, <code>-(-x + -y)</code> with <code>nsz</code> on the <code>fadd</code>, becomes <code>fadd.s fa0, fa0, fa1</code>. That test also has <code>denormal_fpenv</code>, but it fails the same way without it.</p>
+<details><summary>Suggested fix</summary>
+<p>Keep the <code>fsub 0, Y</code> sub-fold. Stop using the <code>fadd</code>/<code>fsub</code>'s own <code>nsz</code> for the rest:</p>
+<ul><li>Minimal: gate the swap and the FADD rewrite on <code>DAG.getTarget().Options.NoSignedZerosFPMath</code>.</li><li>Better: have callers pass down whether the negated value's users ignore the sign of zero, the <code>SDUse</code> form of <code>canIgnoreSignBitOfZero</code>, and require that instead.</li></ul>
+<p>This is the same audit that the <code>frem nsz</code> bug calls for.</p>
+</details>
+</section>
+<section id="dag-constfold-denormal">
+<h2>[SelectionDAG] FP constant folding ignores <code>denormal_fpenv</code> input flushing</h2>
+<p><code>bugs/dag-constfold-denormal/</code> (33 tests in <code>regehr-bugs/</code>)</p>
+<pre><code class="language-llvm">define float @f() #0 {
+  %r = fadd float f0x80800000, f0x00400000
+  ret float %r
+}
+
+attributes #0 = { denormal_fpenv(ieee|positivezero) }</code></pre>
+<pre><code class="language-riscv">lui      a0, 525312       # 0x80400000
+fmv.w.x  fa0, a0</code></pre>
+<p><strong>Expected result.</strong> Under <code>positivezero</code> input mode, the denormal input <code>0x00400000</code> must be read as <code>+0.0</code>. So the result is <code>-2^-126 + 0 = -2^-126</code>, which is <code>0x80800000</code>. The IR constant folder agrees: <code>opt -passes=instsimplify</code> gives <code>ret float f0x80800000</code>, because <code>ConstantFolding.cpp</code> (<code>flushDenormalConstant</code>) honors the mode.</p>
+<p><strong>Actual result.</strong> <code>0x80400000</code>, the unflushed IEEE sum.</p>
+<details><summary>Runtime</summary>
+<p>The compiled <code>repro.ll</code> prints <code>80400000</code>. llubi prints <code>80800000</code> with its default seed. Some seeds give <code>80400000</code>, because llubi's input flushing is itself random; see <a href="TOOL_BUGS"><code>TOOL_BUGS.md</code></a> <a href="TOOL_BUGS#bug-8">#8</a>.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@x = dso_local global float 0.0
+@fmt = private unnamed_addr constant [6 x i8] c&quot;%08x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define float @f(float %unused) #0 noinline {
+  %r = fadd float f0x80800000, f0x00400000
+  ret float %r
+}
+
+define i32 @main() {
+  %x = load volatile float, ptr @x
+  %r = call float @f(float %x)
+  %b = bitcast float %r to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %b)
+  ret i32 0
+}
+
+attributes #0 = { denormal_fpenv(ieee|positivezero) }</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p><code>SelectionDAG::foldConstantFPMath</code> (<code>SelectionDAG.cpp:8229</code>) folds with plain <code>APFloat</code> arithmetic and never looks at <code>getDenormalMode(VT)</code>. The FP path of <code>FoldSetCC</code> (<code>SelectionDAG.cpp:2698</code>) has the same problem. The 12 <code>fcmp</code> tests compare two different denormal constants. For example, <code>regehr-bugs/2a0d5cad</code> has <code>fcmp une double f0x0008100000000000, f0x0008000000000000</code>, which folds to <code>true</code>. Both operands flush to zero, so it must be <code>false</code>.</p>
+</details>
+<p><strong>Scope.</strong></p>
+<ul><li><code>fadd</code> of the constants above: x86-64 and AArch64 give <code>0x80400000</code>, the same wrong result. AMDGPU and NVPTX give <code>0x80800000</code>.</li><li><code>fmul</code>: x86-64 and AArch64 are wrong.</li><li><code>fcmp une</code>: RISC-V, x86-64 and AArch64 fold to <code>true</code>; AMDGPU folds to <code>false</code>.</li></ul>
+<p>On x86-64 and AArch64 this is a miscompile even for users who do set DAZ/FZ as the attribute requires. The folded constant differs from what the instruction would have computed at run time.</p>
+<details><summary>Suggested fix</summary>
+<p>In <code>foldConstantFPMath</code> and the FP branch of <code>FoldSetCC</code>, read <code>DenormalMode Mode = getDenormalMode(VT)</code>, then:</p>
+<ul><li>bail out if <code>Mode.Input</code> is <code>Dynamic</code>;</li><li>otherwise flush denormal operands to <code>±0.0</code> as <code>Mode.Input</code> says before folding, as <code>flushDenormalConstant</code> does in the IR folder.</li></ul>
+<p>Output flushing is optional, so the folded result can stay as computed.</p>
+</details>
+</section>
+<section id="identity-fold-denormal">
+<h2>[InstSimplify][DAGCombiner] <code>x - 0.0 -&gt; x</code> and <code>x + -0.0 -&gt; x</code> ignore <code>denormal_fpenv</code> input flushing</h2>
+<p><code>bugs/identity-fold-denormal/</code> (4 tests in <code>regehr-bugs/</code>)</p>
+<pre><code class="language-llvm">define float @f(float %x) #0 {
+  %r = fsub float %x, 0.000000e+00
+  ret float %r
+}
+
+attributes #0 = { denormal_fpenv(preservesign) }</code></pre>
+<pre><code class="language-riscv">ret                     # returns x unchanged</code></pre>
+<p><strong>Expected result.</strong> Under a flushing input mode, <code>fsub</code> must read a denormal <code>%x</code> as zero, so a denormal <code>%x</code> gives <code>±0.0</code>, never <code>%x</code>. LangRef adds that "the input may need to be converted to 0 as if by <code>@llvm.canonicalize</code>" when an instruction doesn't flush.</p>
+<p><strong>Actual result.</strong> <code>%x</code> is returned unchanged.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> passes the denormal <code>0x00000001</code>. The compiled program prints <code>00000001</code>; llubi prints <code>00000000</code>.</p>
+<p>On RISC-V this can't be separated from the next bug, since a real <code>fsub.s</code> wouldn't flush either. The fold is visible on targets that do honor the attribute:</p>
+<ul><li>AMDGPU (gfx900) emits only <code>s_setpc_b64</code>. The control function <code>fsub float %x, %y</code> emits <code>v_sub_f32</code>, which flushes under the function's mode.</li><li>NVPTX emits a plain <code>ld.param</code>/<code>st.param</code> copy.</li><li>At IR level, <code>opt -passes=instsimplify</code> rewrites the function to <code>ret float %x</code>.</li></ul>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@x = dso_local global float 0x36A0000000000000
+@fmt = private unnamed_addr constant [6 x i8] c&quot;%08x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define float @f(float %x) #0 noinline {
+  %r = fsub float %x, 0.000000e+00
+  ret float %r
+}
+
+define i32 @main() {
+  %x = load volatile float, ptr @x
+  %r = call float @f(float %x)
+  %b = bitcast float %r to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %b)
+  ret i32 0
+}
+
+attributes #0 = { denormal_fpenv(preservesign) }</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p>None of these folds checks the input denormal mode:</p>
+<ul><li>InstSimplify: <code>simplifyFAddInst</code> "fadd X, -0 ==&gt; X" (<code>InstructionSimplify.cpp:6038</code>) and <code>simplifyFSubInst</code> "fsub X, +0 ==&gt; X" (<code>:6104</code>). The <code>nsz</code> variants just below them (<code>fadd X, +0</code>, <code>fsub X, -0</code>) have the same problem.</li><li>DAGCombiner: <code>visitFADD</code> "N0 + -0.0 --&gt; N0" (<code>DAGCombiner.cpp:19447</code>) and <code>visitFSUB</code> "(fsub A, 0) -&gt; A" (<code>:19661</code>).</li></ul>
+<p>Twenty lines further down, <code>visitFSUB</code> already guards <code>fsub -0.0, X -&gt; fneg X</code> with <code>if (DenormMode == DenormalMode::getIEEE())</code> and the comment "We cannot replace an FSUB(+-0.0,X) with FNEG(X) when denormals are flushed to zero". That guard is why <code>regehr-bugs/15c5a597</code> keeps its <code>fsub.s</code>.</p>
+<p>A related IR fold is already known to be wrong. InstCombine turns <code>fsub -0.0, X</code> into <code>fneg X</code> (<code>InstCombineAddSub.cpp:3295</code>) under the comment "FIXME This matcher does not respect FTZ or DAZ yet: fsub -0.0, Denorm ==&gt; +-0; fneg Denorm ==&gt; -Denorm". The DAG's version of the same fold is guarded (see above), but the IR version is not.</p>
+</details>
+<p><strong>Scope.</strong> All targets, and IR. Other operand-returning folds, such as <code>fmul X, 1.0</code> and <code>fdiv X, 1.0</code>, likely have the same problem; I have not tested them.</p>
+<details><summary>Suggested fix</summary>
+<p>Fold to <code>X</code> only when the input mode for the type is IEEE:</p>
+<ul><li>IR: <code>F-&gt;getDenormalMode(Ty-&gt;getScalarType()-&gt;getFltSemantics()).Input == DenormalMode::IEEE</code>.</li><li>DAG: <code>DAG.getDenormalMode(VT).Input == DenormalMode::IEEE</code>.</li></ul>
+<p>Otherwise fold to <code>llvm.canonicalize(X)</code> / <code>ISD::FCANONICALIZE</code> where it is legal, or leave the operation alone.</p>
+</details>
+</section>
+<section id="riscv-denormal-input-mode">
+<h2>[RISCV] <code>denormal_fpenv</code> input flushing modes are silently ignored</h2>
+<p><code>bugs/riscv-denormal-input-mode/</code> (3 tests in <code>regehr-bugs/</code>)</p>
+<pre><code class="language-llvm">define float @f(float %x, float %y) #0 {
+  %r = fadd float %x, %y
+  ret float %r
+}
+
+attributes #0 = { denormal_fpenv(preservesign) }</code></pre>
+<pre><code class="language-riscv">fadd.s  fa0, fa0, fa1</code></pre>
+<p><strong>Expected result.</strong> Per LangRef the operation "must treat any input denormal value as zero", so <code>0x00000001 + 0.0</code> is <code>+0.0</code>.</p>
+<p><strong>Actual result.</strong> RISC-V <code>fadd.s</code> always handles subnormals as IEEE requires. The F/D extensions have no flush-to-zero or denormals-are-zero control; <code>fcsr</code> holds only <code>frm</code> and <code>fflags</code>. So no user or platform setup can give the promised mode, and llc does not canonicalize inputs.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> passes <code>0x00000001</code> and <code>0.0</code>. The compiled program prints <code>00000001</code>; llubi prints <code>00000000</code>.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@x = dso_local global float 0x36A0000000000000
+@fmt = private unnamed_addr constant [6 x i8] c&quot;%08x\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define float @f(float %x, float %y) #0 noinline {
+  %r = fadd float %x, %y
+  ret float %r
+}
+
+define i32 @main() {
+  %x = load volatile float, ptr @x
+  %r = call float @f(float %x, float 0.0)
+  %b = bitcast float %r to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %b)
+  ret i32 0
+}
+
+attributes #0 = { denormal_fpenv(preservesign) }</code></pre>
+</details>
+<p><strong>Spec status.</strong> This is a documented limitation rather than a clear miscompile. LangRef says "Currently this attribute is respected by the AMDGPU and NVPTX backends" and "no attempt is made to diagnose unsupported uses". It is also told the user is "expected to set the floating point mode appropriately before function entry", which is impossible on RISC-V. On x86-64 (MXCSR.DAZ) and AArch64 (FPCR.FZ) the user can set it, so the same code is correct there. The mandatory-flush wording for inputs sits badly with a backend that can do nothing to honor it.</p>
+<p><strong>Scope.</strong> RISC-V, for every FP operation in a function whose input mode is not <code>ieee</code>. The three <code>regehr-bugs/</code> tests are <code>fsub -0.0, x</code>, with and without a <code>select</code>, for <code>float</code> and <code>double</code>.</p>
+<p>backend-tv catches these three only because two other bugs cancel out:</p>
+<ul><li>The lifter copies <code>denormal_fpenv</code> onto the lifted function (<a href="TOOL_BUGS"><code>TOOL_BUGS.md</code></a> <a href="TOOL_BUGS#bug-7">#7</a>), so the lifted <code>fsub.s</code> is modelled as flushing. On its own, that would hide the bug: all three verify with <code>--optimize-tgt=O0</code>.</li><li>backend-tv's default <code>-O3</code> then runs the InstCombine <code>fsub -0.0, X -&gt; fneg X</code> fold from the previous section on the lifted IR. That fold drops the flush again, and the mismatch reappears.</li></ul>
+<p>For the same reason, the <code>fadd</code> in <code>reduced.ll</code> is not flagged by backend-tv at all.</p>
+<details><summary>Suggested fix</summary>
+<p>Either direction would resolve it:</p>
+<ul><li>Honor it: when the input mode is not IEEE, lower FP operations with explicit input canonicalization. That means an <code>fclass</code>-based select to <code>±0.0</code> for each operand. It is correct but slow, which is acceptable for a mode that is rare on RISC-V.</li><li>Or document it: state in LangRef that on targets without hardware denormal control, the input mode is not honored for emitted instructions and only restricts what the optimizer may assume. Then emit a warning when llc sees such a mode on RISC-V.</li></ul>
+<p>This probably belongs as a Discourse question before an issue.</p>
+</details>
+</section>
+<section id="store-subbyte-undef">
+<h2>[InstCombine][DAGCombiner] <code>store i1 undef</code> is deleted, but a non-byte-sized store must zero the rest of the byte</h2>
+<p><code>bugs/store-subbyte-undef/</code> (from the 2026-10-08 run, seed <code>min-max/smin_undef_i32</code>)</p>
+<pre><code class="language-llvm">define void @f(ptr %p) {
+  store i1 undef, ptr %p
+  ret void
+}</code></pre>
+<pre><code class="language-riscv">ret                     # no store</code></pre>
+<p><strong>Expected result.</strong> Since <a href="https://github.com/llvm/llvm-project/pull/180739">#180739</a> (2026-03-10), LangRef says a non-byte-sized store "behaves like a <code>zext</code> followed by a byte-sized store". <code>zext i1 undef to i8</code> is 0 or 1, so after the store the byte must be 0 or 1, whatever it held before.</p>
+<p><strong>Actual result.</strong> The store is deleted, so the byte keeps its old value.</p>
+<details><summary>Runtime</summary>
+<p><code>repro.ll</code> starts with <code>@g = i8 4</code>, calls <code>@f(@g)</code>, and prints <code>@g</code>. The compiled program prints <strong>4</strong>; llubi prints <code>0</code> or <code>1</code>, depending on <code>--seed</code>.</p>
+<p class="file">repro.ll</p>
+<pre><code class="language-llvm">@g = dso_local global i8 4
+@fmt = private unnamed_addr constant [4 x i8] c&quot;%d\0A\00&quot;
+
+declare i32 @printf(ptr, ...)
+
+define void @f(ptr %p) noinline {
+  store i1 undef, ptr %p
+  ret void
+}
+
+define i32 @main() {
+  call void @f(ptr @g)
+  %v = load i8, ptr @g
+  %w = zext i8 %v to i32
+  call i32 (ptr, ...) @printf(ptr @fmt, i32 %w)
+  ret i32 0
+}</code></pre>
+</details>
+<details><summary>Cause</summary>
+<p>Both folds treat any <code>undef</code> stored value as a no-op:</p>
+<ul><li><code>DAGCombiner::visitSTORE</code>, "Turn 'store undef, Ptr' -&gt; nothing.": <code>if (Value.isUndef() &amp;&amp; ST-&gt;isUnindexed() &amp;&amp; !ST-&gt;isVolatile()) return Chain;</code>.</li><li><code>InstCombinerImpl::visitStoreInst</code>, "store undef, Ptr -&gt; noop": <code>if (isa&lt;UndefValue&gt;(Val)) return eraseInstFromFunction(SI);</code>. Its FIXME already notes another problem (<a href="https://github.com/llvm/llvm-project/issues/52930">#52930</a>: the store might overwrite poison), but not this one.</li></ul>
+<p>That was correct when the extra bits of a sub-byte store were unspecified. Under the zext rule, only a fully poison value may be dropped: <code>zext(poison)</code> is poison, but <code>zext(undef)</code> has known-zero high bits.</p>
+</details>
+<p><strong>Scope.</strong> Every target (x86-64 and AArch64 also emit a bare <code>ret</code>), and the IR pipeline (<code>opt -O2</code> deletes it too). Any non-byte width (<code>i1</code>, <code>i2</code>, <code>i17</code>, …) is affected. Byte-sized <code>store iN undef</code> is fine.</p>
+<details><summary>Suggested fix</summary>
+<p>In both folds, require the stored type to be byte-sized or the value to be poison:</p>
+<pre><code class="language-cpp">// DAGCombiner::visitSTORE
+if (Value.isUndef() &amp;&amp; ST-&gt;isUnindexed() &amp;&amp; !ST-&gt;isVolatile() &amp;&amp;
+    (Value.getOpcode() == ISD::POISON ||
+     ST-&gt;getMemoryVT().isByteSized()))
+  return Chain;</code></pre>
+<pre><code class="language-cpp">// InstCombinerImpl::visitStoreInst
+if (isa&lt;PoisonValue&gt;(Val) ||
+    (isa&lt;UndefValue&gt;(Val) &amp;&amp; DL.typeSizeEqualsStoreSize(Val-&gt;getType())))
+  return eraseInstFromFunction(SI);</code></pre>
+<p>Otherwise, store zero.</p>
+</details>
+</section>
+<section id="riscv-vsetvli-i32-rv64">
+<h2>[RISCV] <code>llvm.riscv.vsetvli</code> with a non-XLEN integer type crashes type legalization</h2>
+<p><code>bugs/riscv-vsetvli-i32-rv64/</code> (from the 2026-10-08 run, seed <code>GlobalISel/rvv/vsetvli-intrinsics.iXLen=i32/test_vsetvli_e8m1_nouse</code>)</p>
+<pre><code class="language-llvm">define i32 @f(i32 %avl) {
+  %v = call i32 @llvm.riscv.vsetvli.i32(i32 %avl, i32 0, i32 0)
+  %a = call i32 @llvm.abs.i32(i32 %v, i1 false)
+  ret i32 %a
+}</code></pre>
+<pre><code class="nohighlight">llc -mtriple=riscv64 -mattr=+v reduced.ll
+Don&#x27;t know how to custom type legalize this intrinsic!
+UNREACHABLE executed at llvm/lib/Target/RISCV/RISCVISelLowering.cpp:17689!</code></pre>
+<p><strong>Expected result.</strong> <code>int_riscv_vsetvli</code> is declared with <code>llvm_anyint_ty</code> (<code>IntrinsicsRISCV.td</code>), and the verifier accepts <code>.i32</code> on RV64. llc should either lower it (vsetvli and truncate) or report an error, not reach <code>llvm_unreachable</code>.</p>
+<p><strong>Actual result.</strong> A crash in <code>RISCVTargetLowering::ReplaceNodeResults</code>, <code>INTRINSIC_WO_CHAIN</code> → <code>default:</code>. RV32 with <code>.i64</code> crashes the same way, and so does <code>llvm.riscv.vsetvlimax.i32</code> on RV64. It only fires when the result is used; the unused call in the original test is deleted first.</p>
+<p><strong>Scope.</strong> RISC-V, every intrinsic that is overloaded on XLEN but whose type legalization isn't handled. Impact is low: frontends emit the XLEN type. The fuzzer found it because extract_funcs applies the <code>iXLen=i32</code> RUN-line variant of an RV32 test, which backend-tv then compiles for RV64.</p>
+<details><summary>Suggested fix</summary>
+<p>Add <code>Intrinsic::riscv_vsetvli</code> (and <code>riscv_vsetvlimax</code>) to the <code>INTRINSIC_WO_CHAIN</code> case of <code>ReplaceNodeResults</code>, the way <code>experimental_get_vector_length</code> is: lower at XLEN, then <code>TRUNCATE</code>. Alternatively, restrict the intrinsic to XLEN in the verifier.</p>
+</details>
+</section>
+<section id="prior-art">
+<h2>Prior art (first five searched 2026-09-25, next five 2026-09-30, last two 2026-10-08)</h2>
+<p>None of the twelve has an existing issue or fix PR in <code>llvm/llvm-project</code>. Re-checked 2026-10-08: still none for the first ten. For each bug I searched issues and PRs with several phrasings, and for the first five also LLVM Discourse. The related history below is worth citing.</p>
+<div class="table"><table><thead><tr><th>Bug</th><th>Existing report?</th><th>Related history</th></tr></thead><tbody><tr><td><code>frem nsz</code></td><td>None</td><td>The <code>nsz</code> early return in <code>canIgnoreSignBitOfZero</code> came from <a href="https://github.com/llvm/llvm-project/pull/178905">#178905</a> (<a href="https://github.com/llvm/llvm-project/commit/1818b23a99adc54f1c9e3d520d027d751604be0a"><code>1818b23a99ad</code></a>, 2026-02-01). That was correct under the old <code>nsz</code> wording. <a href="https://github.com/llvm/llvm-project/pull/180906">#180906</a> (<a href="https://github.com/llvm/llvm-project/commit/3ad43f2d1c03f7f04bd2943e9411a7986b1962c3"><code>3ad43f2d1c03</code></a>, 2026-03-02) then made <code>nsz</code> input-only; its description lists the <code>fabs</code>/<code>copysign</code> consequences but not this one. IR-level <code>fabs</code>+<code>nsz</code> fixes are open (<a href="https://github.com/llvm/llvm-project/pull/216232">#216232</a>, <a href="https://github.com/llvm/llvm-project/issues/217505">#217505</a>), but nothing covers SelectionDAG.</td></tr><tr><td><code>freeze undef</code> split</td><td>None</td><td><a href="https://github.com/llvm/llvm-project/pull/222832">#222832</a> (DetectDeadLanes/ProcessImplicitDefs/verifier) and <a href="https://github.com/llvm/llvm-project/pull/222249">#222249</a> (RegAllocFast) fixed only the <strong>tied</strong>-operand form. This is the non-tied form under the greedy allocator.</td></tr><tr><td><code>copysign</code>/<code>fptrunc</code></td><td>None</td><td>Nothing on the multi-use/NaN-sign problem. The only nearby change is <a href="https://github.com/llvm/llvm-project/pull/129878">#129878</a>, which removed <code>combiner-vector-fcopysign-extend-round</code>, a test-only option for the <em>vector</em> form of this fold. It does not affect the bug.</td></tr><tr><td><code>memset</code> <code>i32</code> length</td><td>None</td><td>No spec discussion of <code>len</code> signedness found. Discourse "Incorrect lowering of memcpy and memset intrinsics" (<a href="https://github.com/llvm/llvm-project/issues/63755">#63755</a>) is about zero length on wasm and is unrelated.</td></tr><tr><td><code>freeze</code> sub-byte load</td><td>None</td><td>Introduced by <a href="https://github.com/llvm/llvm-project/pull/189317">#189317</a> (<a href="https://github.com/llvm/llvm-project/commit/77434ce19a48c519f8c90043e94fc602d6f86de9"><code>77434ce19a48</code></a>, 2026-04-30). It added the freeze look-through and <code>AssertZext</code> in <code>reduceLoadWidth</code>, and all its examples are byte-sized. It landed after LangRef's sub-byte rule, <a href="https://github.com/llvm/llvm-project/pull/180739">#180739</a> (2026-03-10). Nearby: <a href="https://github.com/llvm/llvm-project/pull/94491">#94491</a> (open, <code>freeze(assertext)</code> folds), <a href="https://github.com/llvm/llvm-project/pull/224213">#224213</a> (open, AArch64 frozen extloads).</td></tr><tr><td>RISC-V realign 2^32</td><td>None</td><td>Nothing on realignment truncation for any target.</td></tr><tr><td><code>fneg</code> of <code>fadd</code>/<code>fsub nsz</code></td><td>None</td><td>Same <code>nsz</code> history as the <code>frem</code> row. The <code>getNegatedExpression</code> guard predates <a href="https://github.com/llvm/llvm-project/pull/180906">#180906</a> and was correct under the old wording.</td></tr><tr><td>DAG FP constant folding</td><td>None</td><td>The denormal-mode soundness work under way upstream is all at IR level. <a href="https://github.com/llvm/llvm-project/issues/226871">#226871</a> and <a href="https://github.com/llvm/llvm-project/issues/226874">#226874</a> (both closed 2026-09-29) report odd-function folds that are unsound under FTPZ/DAPZ, and <a href="https://github.com/llvm/llvm-project/pull/227039">#227039</a> (merged 2026-09-29) fixed <code>sin(-x)</code>. <a href="https://github.com/llvm/llvm-project/pull/220148">#220148</a> (open) and <a href="https://github.com/llvm/llvm-project/pull/219303">#219303</a> (open) fix <code>KnownFPClass</code> denormal handling. None touches SelectionDAG.</td></tr><tr><td>Identity folds</td><td>None</td><td>Same threads as above. The in-tree precedent is the <code>DenormalMode::getIEEE()</code> guard on <code>fsub -0.0, X -&gt; fneg X</code> in <code>visitFSUB</code>. The IR form of that fold has an in-source FIXME in InstCombine but I found no issue for it.</td></tr><tr><td>RISC-V input mode</td><td>None</td><td>LangRef documents that only AMDGPU and NVPTX respect the attribute.</td></tr><tr><td><code>store i1 undef</code></td><td>None</td><td><a href="https://github.com/llvm/llvm-project/issues/52930">#52930</a> (open since 2021, "Reading uninitialized memory must be poison, not undef") is cited in InstCombine's FIXME on the same fold, for a different reason. The zext rule comes from <a href="https://github.com/llvm/llvm-project/pull/180739">#180739</a> (2026-03-10).</td></tr><tr><td><code>vsetvli</code> non-XLEN</td><td>None</td><td>Searched for the crash message and for vsetvli/XLEN; nothing.</td></tr></tbody></table></div>
+</section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/llvm.min.js"></script>
+<script>
+  hljs.registerLanguage("riscv", () => ({
+    name: "RISC-V",
+    contains: [
+      { scope: "comment", begin: /#/, end: /$/ },
+      { scope: "title", begin: /^\s*[\w.]+:/ },
+      { scope: "keyword", begin: /(?<=^\s*(?:[\w.]+:\s*)?)[a-z][a-z0-9]*(?:\.[a-z0-9]+)*\b/ },
+      { scope: "variable", begin: /\b(?:zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[01]|a[0-7]|f[tsa]\d+|x\d+|v\d+)\b/ },
+      { scope: "number", begin: /-?\b(?:0x[0-9a-f]+|\d+(?:\.\d+)?)\b/ },
+    ],
+  }));
+  hljs.highlightAll();
+</script>
+</body>
+</html>

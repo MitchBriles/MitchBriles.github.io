@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool Bugs</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    --bg: #fff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --accent: #0b62c4;
+    --code-bg: #f1f3f5;
+    --rule: #e3e5e8;
+    --fixed: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a;
+      --fg: #e6e8eb;
+      --muted: #9aa3ad;
+      --accent: #6cb1ff;
+      --code-bg: #23272d;
+      --rule: #2c3036;
+      --fixed: #4ac26b;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 16px 64px;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 24px; }
+  h2 { font-size: 1.2rem; line-height: 1.35; margin: 0 0 12px; }
+  h3 { font-size: 1.05rem; line-height: 1.35; margin: 32px 0 12px; }
+  section, nav { margin-top: 48px; }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 40px 0; }
+  a { color: var(--accent); }
+  a:has(> code) { text-decoration-thickness: 1px; }
+  code {
+    font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    overflow-wrap: anywhere;
+  }
+  pre {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    line-height: 1.45;
+  }
+  pre code, pre code.hljs {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+    overflow-wrap: normal;
+  }
+  ul, ol { padding-left: 1.4em; }
+  li { margin-bottom: 6px; }
+  li > pre { margin: 8px 0; }
+  .table { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+  th { white-space: nowrap; }
+  details { margin: 12px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  details[open] > summary { margin-bottom: 8px; }
+  details > :not(summary) { margin-left: 1.1em; }
+  .file { margin-top: 16px; margin-bottom: -8px; font: 0.82rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  .fixed {
+    display: inline-block;
+    vertical-align: 0.15em;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border: 1px solid var(--fixed);
+    border-radius: 4px;
+    color: var(--fixed);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    text-decoration: none;
+  }
+  .index li { margin-bottom: 4px; }
+  .index a:not(.fixed) { text-decoration: none; }
+  .index a:not(.fixed):hover { text-decoration: underline; }
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    details > :not(summary) { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>Alive2, backend-tv and llubi bugs</h1>
+<p>Every bug below was confirmed locally on 2026-09-30 against the <code>arm-tv</code> checkout at <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a> (2026-09-29), which includes <a href="https://github.com/AliveToolkit/alive2/pull/1349">AliveToolkit/alive2#1349</a> and <a href="https://github.com/AliveToolkit/alive2/pull/1350">#1350</a>. <a href="#bug-1">#1</a>–<a href="#bug-5">#5</a> were first found on <a href="https://github.com/regehr/alive2/commit/165e70cd43ff0cba8b8d1418ad8796bc61849939"><code>165e70cd</code></a> and still reproduce at <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a>. Repro files are in <code>bugs/tools/</code>. Commands:</p>
+<pre><code class="nohighlight">backend-tv --backend=riscv64 --smt-to=30000 &lt;file&gt;.ll
+alive-tv &lt;file&gt;.srctgt.ll
+llubi --seed=&lt;N&gt; &lt;file&gt;.ll</code></pre>
+<p>The suggested fixes are directions from reading the code. <a href="#bug-1">#1</a>, <a href="#bug-5">#5</a> and <a href="#bug-9">#9</a> are implemented on the fuzzing branch <code>arm-tv-fuzzing</code> (<a href="https://github.com/MitchBriles/alive2/tree/arm-tv-fuzzing">github.com/MitchBriles/alive2</a>), which is <code>regehr/arm-tv</code> <a href="https://github.com/regehr/alive2/commit/fe30221bb6606a09746246d8f25a2c91f4ccf58a"><code>fe30221b</code></a> plus the cherry-picked "keep up with LLVM (<a href="https://github.com/AliveToolkit/alive2/pull/1365">#1365</a>)" and these commits:</p>
+<ul><li><a href="https://github.com/MitchBriles/alive2/commit/af11ecb6aada8011074ebd985730e3fca5c4744d"><code>af11ecb6</code></a> BTV-PHASE markers</li><li><a href="https://github.com/MitchBriles/alive2/commit/8409f4efb6c012ec0eae88a2c7dbde979dd6b3a1"><code>8409f4ef</code></a> padding (<a href="#bug-1">#1</a>)</li><li><a href="https://github.com/MitchBriles/alive2/commit/ad71c662b28f1a80a595c705a9d1cb39ed89d551"><code>ad71c662</code></a> global-name print (<a href="#bug-5">#5</a>)</li><li><a href="https://github.com/MitchBriles/alive2/commit/2986fdff50e3fd6b35fe31f24ec068c1f2be694d"><code>2986fdff</code></a> stack check (<a href="#bug-9">#9</a>)</li></ul>
+<p>The fuzzing runs from 2026-10-08 on use that branch.</p>
+<hr>
+<h2>Alive2 (<code>AliveToolkit/alive2</code>)</h2>
+<h3 id="bug-1">1. <code>noundef</code> makes struct padding non-poison, giving false memory mismatches</h3>
+<p><strong>Status.</strong> Present on upstream <code>master</code> and <code>regehr/arm-tv</code>. Fixed on <code>arm-tv-fuzzing</code> (<a href="https://github.com/MitchBriles/alive2/commit/8409f4efb6c012ec0eae88a2c7dbde979dd6b3a1"><code>8409f4ef</code></a>, with the two lit tests below); not yet sent upstream.</p>
+<p><strong>Description.</strong> A <code>noundef</code> call return or <code>!noundef</code> load becomes <code>Assume(WellDefined)</code>. Every later read of that value then sets <em>all</em> non-poison bits, the padding element's included, with <code>expr::mkInt(-1, np)</code>. This happens at two sites: <code>State::eval</code> and <code>State::getAndAddPoisonUB</code> (<code>ir/state.cpp</code>). An aggregate store therefore writes padding as a defined <code>0x00</code>. LangRef says the opposite on both points: well-definedness "doesn't consider the padding of an aggregate", and a store fills padding with <code>undef</code>. When the target leaves the padding untouched, Alive2 reports "Mismatch in memory". All 118 padded-struct false alarms in the 5-hour run have this shape (a <code>noundef</code> aggregate that is then stored). The two I re-ran with the fix now verify.</p>
+<p><strong>Repro.</strong> <code>tools/padding-noundef.srctgt.ll</code>, run with <code>alive-tv -tgt-is-asm</code>:</p>
+<pre><code class="language-llvm">define void @src(ptr %p, i16 %a, i16 %b) {
+  %r = call noundef { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
+  store { i16, i1 } %r, ptr %p, align 2
+  ret void
+}
+define void @tgt(ptr %p, i16 %a, i16 %b) {   ; stores both fields, never byte 3
+  %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
+  %v = extractvalue { i16, i1 } %r, 0
+  %o = extractvalue { i16, i1 } %r, 1
+  store i16 %v, ptr %p, align 2
+  %q = getelementptr i8, ptr %p, i64 2
+  %o8 = zext i1 %o to i8
+  store i8 %o8, ptr %q, align 1
+  ret void
+}</code></pre>
+<p>Unpatched: <code>Mismatch in pointer(non-local, block_id=1, offset=3)</code>, with source <code>#x00</code> and target <code>#x01</code>. Byte 3 is padding.</p>
+<p><strong>Suggested fix.</strong> This is what I implemented locally. Add a helper shaped like <code>State::freeze</code> that forces non-poison bits everywhere except padding. It recurses through non-vector aggregates and rebuilds them with <code>aggregateVals</code>, which puts poison back in the padding slots. Use it at both sites.</p>
+<ul><li>The full <code>alive-tv</code> suite shows no regressions (its one failure is pre-existing, confirmed by an A/B build).</li><li>Two lit tests were added in <code>tests/alive-tv/asm/padding-noundef-store{,-fail}.srctgt.ll</code>.</li></ul>
+<h3 id="bug-2">2. Fast-math flags on <code>sitofp</code>/<code>uitofp</code> are not supported</h3>
+<p><strong>Status.</strong> Present on both branches. On <code>arm-tv</code> the instruction is refused as "Unsupported instruction". Upstream <code>master</code> passes the flags to <code>FpConversionOp</code>, whose constructor has <code>assert(fmath.isNone())</code> for everything except <code>fpext</code>/<code>fptrunc</code> (<code>ir/instr.cpp</code>). So an assertion build aborts, and a release build silently ignores the flags. The upstream behaviour is from reading the code; I haven't run it.</p>
+<p><strong>Description.</strong> LangRef allows fast-math flags on <code>{s,u}itofp</code> since <a href="https://github.com/llvm/llvm-project/pull/198470">#198470</a> (2026-05). It also gives <code>nsz</code> specific meaning there: "If the input value is 0, the sign bit of the result is non-deterministic." The fuzzer hit this 8 times across <code>nnan</code>, <code>ninf</code> and <code>nsz</code>, on scalars and vectors.</p>
+<p><strong>Repro.</strong> <code>tools/itofp-fmf.srctgt.ll</code>:</p>
+<pre><code class="language-llvm">define double @src(i32 %a) {
+  %r = uitofp nnan i32 %a to double
+  ret double %r
+}
+define double @tgt(i32 %a) {
+  %r = uitofp i32 %a to double
+  ret double %r
+}</code></pre>
+<p>Result: <code>ERROR: Unsupported instruction: %r = uitofp nnan i32 %a to double</code>.</p>
+<p><strong>Suggested fix.</strong> Model the flags in <code>FpConversionOp::toSMT</code> for <code>SIntToFP</code> and <code>UIntToFP</code>:</p>
+<ul><li><code>nnan</code>: a no-op, since integer-to-FP conversion never produces a NaN.</li><li><code>ninf</code>: poison when the result is ±Inf. This can happen when narrowing, e.g. <code>i32</code> → <code>half</code>.</li><li><code>nsz</code>: when the input is 0, pass the result through <code>any_fp_zero</code>.</li><li><code>arcp</code>, <code>contract</code>, <code>reassoc</code>, <code>afn</code>: no effect on a single correctly rounded conversion.</li></ul>
+<p>Then drop the assertion and the <code>llvm2alive</code> refusal.</p>
+<p>Until then, <code>llvm-ir-mutator --alive2-safe</code> strips fast-math flags from int-to-FP conversions (<a href="https://github.com/MitchBriles/llvm-ir-mutator/commit/70f9aa0fcd8be6b8580007954be12e531c41c7a4"><code>70f9aa0</code></a>).</p>
+<h3 id="bug-6">6. Asm mode reports a valid load of an <code>align 1</code> global as UB</h3>
+<p><strong>Status.</strong> Present on <code>arm-tv</code> <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a>. I have not found the cause. I only checked <code>arm-tv</code>; <code>master</code> also has <code>-tgt-is-asm</code>, but I haven't run this there. This is the cause of <code>regehr-bugs/c5b79f85</code>, the only <code>Source is more defined than target</code> result among the 44.</p>
+<p><strong>Description.</strong></p>
+<ul><li>backend-tv runs <code>-O3</code> over the lifted IR before checking it.</li><li>For <code>regehr-bugs/c5b79f85</code> (<code>tools/lifted-o3-speculated-load.ll</code>), the source is <code>store 0, %p; select %c, @g0, %p; load</code>.</li><li><code>-O3</code> hoists <code>load @g0</code> above the select. That is legal: LLVM treats a non-<code>extern_weak</code> global as dereferenceable for its type's size, and plain <code>alive-tv</code> verifies the same source/target pair.</li><li>In asm mode (<code>-tgt-is-asm</code>, which backend-tv uses), Alive2 reports the hoisted load as UB. In the counterexample <code>%p</code> points to <code>@g0</code>'s own block, which is alive, 4 bytes, and in bounds.</li><li>With <code>--optimize-tgt=O0</code>, <code>c5b79f85</code> verifies.</li></ul>
+<p>The false alarm needs every one of these. Changing any single one makes it verify:</p>
+<ul><li><code>@g0</code> has <code>align 1</code>; <code>align 4</code> verifies.</li><li>The target loads it as <code>i32</code>; <code>i8</code> verifies.</li><li>There is an <code>align 4</code> access through the pointer argument; <code>align 1</code> verifies.</li><li><code>@g0</code> is not <code>constant</code>.</li></ul>
+<p><strong>Repro.</strong> <code>tools/asm-mode-align1-global.srctgt.ll</code>, run with <code>alive-tv -tgt-is-asm</code>:</p>
+<pre><code class="language-llvm">@g0 = global i32 0, align 1
+
+define ptr @src(ptr %p) {
+  %x = load i32, ptr %p, align 4
+  ret ptr @g0
+}
+
+define ptr @tgt(ptr %p) {
+  %x = load i32, ptr %p, align 4
+  %g = load i32, ptr @g0, align 1
+  ret ptr @g0
+}</code></pre>
+<pre><code class="nohighlight">ERROR: Source is more defined than target
+  ptr %p = pointer(non-local, block_id=1, offset=0) / Address=#x0000000000000004
+  Target: i32 %g = UB triggered!
+  (block 1: size 4, align 1, alive, address 0x4)</code></pre>
+<p>Without <code>-tgt-is-asm</code> it verifies.</p>
+<p><strong>Suggested fix (direction).</strong> The access through <code>%p</code> appears to constrain the target's view of <code>@g0</code>'s block in a way that the <code>align 1</code> access then fails. Start from the asm-mode branches in <code>ir/memory.cpp</code>: <code>computeAliasing</code>, which in asm mode uses the block id only when <code>p.isInbounds(true)</code> is implied, <code>mayalias</code>, and the alignment checks on access. Until it's fixed, <code>fuzz.py</code> could re-run <code>Source is more defined</code> results with <code>--optimize-tgt=O0</code> and discard the ones that then verify.</p>
+<p>**A second shape (2026-10-08 run, seed <code>memset-inline/memset_zero_8</code>).** A <code>memset</code> through an argument, followed by an <code>align 4</code> store to a global, gives a false target UB in asm mode only. <code>tools/asm-mode-memset-align.srctgt.ll</code>:</p>
+<pre><code class="language-llvm">@G = global i32 1
+define void @src(ptr %a) {
+  call void @llvm.memset.p0.i64(ptr %a, i8 0, i64 4, i1 false)
+  store i32 2, ptr @G, align 4
+  ret void
+}
+define void @tgt(ptr %a) {
+  store i32 0, ptr %a, align 1
+  store i32 2, ptr @G, align 4
+  ret void
+}</code></pre>
+<ul><li><code>alive-tv -tgt-is-asm</code> reports <code>Source is more defined than target</code>; plain <code>alive-tv</code> verifies.</li><li>If the source also uses <code>store i32 0, ptr %a, align 1</code> instead of the memset, it verifies.</li><li>If <code>@G</code> has <code>align 1</code>, it verifies.</li></ul>
+<p>Like the first shape, this points at how asm mode relates the alignment of an argument-block access to a global's block.</p>
+<h3 id="bug-10">10. A pointer load/store round trip is not treated as identity when memory holds mixed bytes</h3>
+<p><strong>Status.</strong> Present on <code>arm-tv-fuzzing</code> (<a href="https://github.com/MitchBriles/alive2/commit/2986fdff50e3fd6b35fe31f24ec068c1f2be694d"><code>2986fdff</code></a>), in both IR and asm mode. Found by the 2026-10-08 run (seed <code>addimm-mulimm/add_mul_combine_reject_g1</code>).</p>
+<p><strong>Description.</strong></p>
+<ul><li>In the source, a function loads a <code>ptr</code> from a global, stores to an unrelated global, then stores the loaded <code>ptr</code> back.</li><li>The target drops the round trip: llc removes the <code>load</code>/<code>store</code> pair as a no-op, as EarlyCSE does in IR. With a <code>freeze</code> in between, llc keeps a plain <code>ld</code>/<code>sd</code> copy instead.</li><li>Alive2 lets the global's initial bytes be a mix of pointer bytes and integer bytes. In its model, <code>load ptr</code> of such bytes yields one well-formed pointer, so storing it back <em>changes</em> the bytes. The target leaves them untouched, so Alive2 reports <code>Mismatch in memory</code>.</li><li>The machine code preserves the memory bits exactly, and LangRef says backend passes do not see byte-level semantics ("backend passes do not see the byte type and do not preserve its bit-level semantics"). So llc's output is correct.</li><li>The disagreement is with Alive2's mid-end view, in which <code>load ptr</code> is not a byte copy. LangRef's new byte type exists for that case.</li></ul>
+<p>Without the intervening store, both forms verify.</p>
+<p>The same model also bites when such a loaded pointer is passed to a call (<code>call @f(ptr %LGV)</code>, where <code>%LGV = load ptr, ptr @G</code> and <code>@G = global ptr poison</code>). Alive2 then fails to match the two calls' inputs and models them independently, which gives <code>Value mismatch</code> or <code>Mismatch in memory</code> after the call. 3 of the 2026-10-08 candidates were this, and each verifies with <code>ptr null</code> as the argument.</p>
+<p><strong>Repro.</strong> <code>tools/ptr-roundtrip.srctgt.ll</code> (plain <code>alive-tv</code>, also <code>-tgt-is-asm</code>) and <code>tools/ptr-roundtrip.ll</code> (backend-tv):</p>
+<pre><code class="language-llvm">@G = global ptr null
+@H = global i32 1
+
+define void @src() {
+  %p = load ptr, ptr @G, align 8
+  store i32 0, ptr @H, align 4
+  store ptr %p, ptr @G, align 8
+  ret void
+}
+
+define void @tgt() {
+  store i32 0, ptr @H, align 4
+  ret void
+}</code></pre>
+<pre><code class="nohighlight">ERROR: Mismatch in memory
+Mismatch in pointer(non-local, block_id=1, offset=0)
+Source value: pointer(non-local, block_id=0, offset=1153343991949819904), byte offset=0
+Target value: pointer(non-local, block_id=1, offset=360305566670651384), byte offset=0</code></pre>
+<p><strong>Suggested fix (direction).</strong> For the asm target, compare memory as bits rather than as typed bytes. Alternatively, when the source stores back a value it loaded from the same location, treat that as a byte copy. It is only a false alarm in asm mode, so a narrow change there is enough for backend-tv. Whether the IR-mode verdict is right is a separate semantics question.</p>
+<hr>
+<h2>backend-tv (<code>regehr/alive2</code>, branch <code>arm-tv</code>)</h2>
+<h3 id="bug-3">3. A local's address passed to a call gives a false "Source is more defined than target"</h3>
+<p><strong>Status.</strong> Present. This is likely the dominant false alarm. Every <code>function did not return</code> case I inspected (<code>addi_fold_crash</code>, <code>fsw_stack</code>, <code>caller_no_realign2048</code>) passes a local's address to a callee. I haven't classified all 438 such results from the 8-hour run.</p>
+<p><strong>Description.</strong></p>
+<ul><li>The source passes the callee a pointer to its own 4-byte local block.</li><li>The lifted target passes <code>phy-ptr(sp+4)</code>, a pointer into the lifter's single frame-sized stack block, which also holds the saved <code>ra</code>.</li><li>Alive2 can't match the two calls' inputs, so it models them independently. In the counterexample the target's callee "triggered UB" while the source's callee "did not return", which makes the source more defined.</li></ul>
+<p>Passing a non-local pointer to the same callee verifies.</p>
+<p><strong>Repro.</strong> <code>tools/escaped-local-call.ll</code>:</p>
+<pre><code class="language-llvm">declare void @ext(ptr)
+define void @f() {
+  %a = alloca i32
+  call void @ext(ptr %a)
+  ret void
+}</code></pre>
+<pre><code class="nohighlight">ERROR: Source is more defined than target
+  Source: void = function did not return!
+  Target: Function @ext triggered UB</code></pre>
+<p><strong>Suggested fix (direction).</strong> Make an escaped stack object look the same to the callee on both sides:</p>
+<ul><li>either give each escaped stack slot its own block in the lifted target, using the frame layout from llc's <code>MachineFrameInfo</code>;</li><li>or, in asm mode, relate the source <code>alloca</code> block to the corresponding sub-range of the target stack block when matching call inputs.</li></ul>
+<p><code>triage.py</code> sorts this signature (<code>did not return</code> in the source plus callee UB in the target) into <code>escaped-local</code>. In the 2026-10-08 run that was 231 of 339 unsound results, plus 79 <code>did-not-return</code>.</p>
+<p>A related form: the target's memory before a call is <em>more</em> defined than the source's, but not identical. For example, the source stores <code>i2 poison</code> and the target stores the masked byte (<code>andi 3; sb</code>). Alive2 again models the callees independently, and the memory after the call mismatches. A 15-line repro of this is in the ohm run (<code>b026c5e7…</code>, seed <code>calling-conv-sext-zext/anyint32_arg_to_uint8_ret</code>). Matching call inputs up to refinement, rather than equality, would fix both forms.</p>
+<h3 id="bug-4">4. A local's address that escapes by value is compared by address</h3>
+<p><strong>Status.</strong> Present. This caused about 10 <code>Value mismatch</code> / <code>Mismatch in memory</code> results in the 8-hour run, and 4 in the 2026-10-08 run.</p>
+<p>It also fires when the address is returned (<code>ret ptr %A</code>) or stored to a global (<code>store ptr %A, ptr @G</code>), not only for out-of-bounds GEPs. <code>triage.py</code> calls this class <code>local-address</code>.</p>
+<p><strong>Description.</strong> The source places its <code>alloca</code> at the start of the local address space (<code>0x8000000000000000</code>). The lifted target has the same object at <code>sp+12</code>, which is offset <code>0x3fc</code> into its stack block. In bounds, the two pointers are matched by provenance and verify. Once a GEP leaves the object's 4 bytes, they are compared as raw addresses and differ. An <code>alloca</code>'s address is unspecified, so the target's placement is a legal choice. The false alarm needs the <code>alloca</code> to be really allocated, which a store forces; without the store it verifies.</p>
+<p><strong>Repro.</strong> <code>tools/oob-local-pointer.ll</code>:</p>
+<pre><code class="language-llvm">define ptr @f(i32 %v) {
+  %a = alloca i32
+  store i32 %v, ptr %a
+  %g = getelementptr i8, ptr %a, i64 512
+  ret ptr %g
+}</code></pre>
+<pre><code class="nohighlight">ERROR: Value mismatch
+  Source value: pointer(local, block_id=0, offset=512) / Address=#x8000000000000200
+  Target value: phy-ptr(addr=...)                      / Address=#x80000000000005fc</code></pre>
+<p><strong>Suggested fix (direction).</strong> In asm mode, let each source local block's address be chosen to match the target's stack-slot address, rather than fixing it at the local base. Alternatively, treat the address of a pointer based on a source local block as unconstrained once it leaves the block. This shares a root cause with <a href="#bug-3">#3</a>, a mismatch between the source's per-<code>alloca</code> blocks and the target's single stack block, so one frame-layout mapping could fix both.</p>
+<h3 id="bug-5">5. Global names are printed to stdout with no newline</h3>
+<p><strong>Status.</strong> Present on <code>regehr/arm-tv</code>. Fixed on <code>arm-tv-fuzzing</code> (<a href="https://github.com/MitchBriles/alive2/commit/ad71c662b28f1a80a595c705a9d1cb39ed89d551"><code>ad71c662</code></a>). Cosmetic, but it corrupts output parsing.</p>
+<p><strong>Description.</strong> The <code>thread_local</code> check in <code>doit</code> (<code>tools/backend-tv.cpp</code>) prints every global's name without a newline, apparently leftover debug output. Any <code>ERROR:</code> printed right after it ends up glued to the name, e.g. <code>GERROR: Unsupported instruction ...</code>, which breaks tools that match on <code>^ERROR:</code>. <code>fuzz.py</code> works around this.</p>
+<p><strong>Repro.</strong> <code>tools/global-name-print.ll</code>:</p>
+<pre><code class="language-llvm">@G = global i32 0
+define i32 @f() {
+  %v = load i32, ptr @G
+  ret i32 %v
+}</code></pre>
+<p>The second stdout line is a bare <code>G</code>.</p>
+<p><strong>Suggested fix.</strong> Delete <code>*out &lt;&lt; global.getName().str();</code> from that loop.</p>
+<h3 id="bug-7">7. The lifter copies the source's attributes onto the lifted function</h3>
+<p><strong>Status.</strong> Present on <a href="https://github.com/regehr/alive2/commit/eb9f93350af3206fece0b72674d4fa07e652a5f6"><code>eb9f9335</code></a> and <code>arm-tv-fuzzing</code>. This one gives false <em>negatives</em>: backend-tv says "correct" for code that computes the wrong value.</p>
+<p><strong>Description.</strong> <code>mc2llvm.cpp:797</code> runs <code>liftedFn-&gt;copyAttributesFrom(srcFn);</code>, so the lifted function inherits the source's <code>denormal_fpenv</code>. Alive2 then models each lifted FP operation as flushing denormal inputs, as LangRef requires. The RISC-V instructions never flush: there is no FTZ/DAZ control. The lifted IR therefore claims semantics the assembly doesn't have, and the source and target agree only because both are modelled wrongly.</p>
+<p>It also interacts with LLVM. <code>regehr-bugs/15c5a597</code>, <code>2bad131b</code> and <code>70b8547d</code> fail only because backend-tv's <code>-O3</code> over the lifted IR runs InstCombine's <code>fsub -0.0, X -&gt; fneg X</code>, which ignores the attribute (a known FIXME). That fold removes the modelled flush. With <code>--optimize-tgt=O0</code> all three verify, even though the RISC-V code is wrong (<a href="BUGS"><code>REPORTS.md</code></a>, "RISC-V ignores the input mode").</p>
+<p><strong>Repro.</strong> <code>tools/lifted-denormal-attr.ll</code>:</p>
+<pre><code class="language-llvm">define float @f(float %x, float %y) #0 {
+  %r = fadd float %x, %y
+  ret float %r
+}
+
+attributes #0 = { denormal_fpenv(preservesign) }</code></pre>
+<p>backend-tv reports <code>Transformation seems to be correct!</code>. llc emits a bare <code>fadd.s</code>. Running that same function in <code>bugs/riscv-denormal-input-mode/repro.ll</code> with <code>x = 0x00000001</code> and <code>y = 0.0</code> prints <code>00000001</code> under qemu, where LangRef requires <code>00000000</code>.</p>
+<p><strong>Suggested fix.</strong> After <code>copyAttributesFrom</code>, give the lifted function the mode the hardware actually implements. The code right after line 797 already does this for memory effects ("The source function's memory effects don't describe the lifted code"). For RISC-V:</p>
+<pre><code class="language-cpp">liftedFn-&gt;removeFnAttr(llvm::Attribute::DenormalFPEnv);</code></pre>
+<p>The default is then <code>ieee|ieee</code>. A backend with a real flush mode (AArch64 <code>FPCR.FZ</code>) would need that mode modelled explicitly instead. Stripping the attribute also removes the dependence on the InstCombine FIXME.</p>
+<p><strong>Parameter attributes too (false alarm, 2026-10-08 run).</strong> <code>copyAttributesFrom</code> also copies parameter attributes, such as <code>nofpclass(nan)</code>.</p>
+<ul><li>In the lifted IR a NaN argument is then poison.</li><li>In the source it is only poison until a <code>freeze</code>. The register itself just holds the NaN bits.</li><li>After <code>-O3</code> folds the lifted code using the copied attribute, the target stores poison where the source stores a frozen value, which Alive2 reports as <code>Mismatch in memory</code>.</li><li>Without the attribute it verifies.</li></ul>
+<p><code>tools/lifted-nofpclass.ll</code>:</p>
+<pre><code class="language-llvm">define i1 @f(float nofpclass(nan) %a, ptr %G) {
+  %w = freeze float %a
+  store float %w, ptr %G, align 4
+  %C = fcmp ord float %w, 0.000000e+00
+  ret i1 %C
+}</code></pre>
+<p>Fix: drop the poison-generating parameter and return attributes from the lifted function (<code>nofpclass</code>, <code>range</code>, <code>nonnull</code>, <code>align</code>, <code>dereferenceable</code>, <code>noundef</code>), keeping only those that describe the ABI (<code>signext</code>, <code>zeroext</code>).</p>
+<h3 id="bug-9">9. The stack-size check ignores realignment padding, turning big realigned frames into false alarms</h3>
+<p><strong>Status.</strong> Present on <code>regehr/arm-tv</code>. Fixed on <code>arm-tv-fuzzing</code> (<a href="https://github.com/MitchBriles/alive2/commit/2986fdff50e3fd6b35fe31f24ec068c1f2be694d"><code>2986fdff</code></a>), which uses the fix below: over-aligned frames now get the clean <code>Stack frame too large</code> error. This also means backend-tv can no longer see the 2^32 realignment bug at all; it was only ever found by reading the asm (<a href="BUGS">REPORTS.md</a>).</p>
+<p><strong>Description.</strong> The lifter models the stack as a single 1024-byte region (<code>stackBytes</code> in <code>mc2llvm.h</code>). <code>checkSupport</code> (<code>mc2llvm.cpp:979-981</code>, <code>1207</code>) totals the source <code>alloca</code> sizes and rejects the function with <code>ERROR: Stack frame too large, consider increasing stackBytes</code> once that total reaches 1024. It never counts the padding that realignment adds. A small over-aligned <code>alloca</code> therefore passes the check, but llc realigns <code>sp</code> by up to the alignment. The target's stores then land outside the modelled region, and Alive2 reports <code>Source is more defined than target</code>, even though the code is correct.</p>
+<p>Measured with a 1-byte <code>alloca</code> plus a load and a store (the shape of <code>bugs/riscv-stack-realign-4g/reduced.ll</code>):</p>
+<ul><li><code>align</code> 16 to 512: verifies.</li><li><code>align</code> 1024 and above: false alarm.</li></ul>
+<p>This includes the 2^32 case with the LLVM fix applied, where the asm (<code>srli</code>/<code>slli</code>) is correct and runs correctly under qemu. For comparison, a plain <code>[1100 x i8]</code> <code>alloca</code> gets the clean "too large" error.</p>
+<p><strong>Repro.</strong> <code>tools/overaligned-alloca.ll</code>:</p>
+<pre><code class="language-llvm">define void @f() {
+  %1 = alloca i1, align 1024
+  %2 = load i1, ptr %1, align 1024
+  store i1 false, ptr %1, align 1024
+  ret void
+}</code></pre>
+<pre><code class="nohighlight">ERROR: Source is more defined than target</code></pre>
+<p><strong>Suggested fix.</strong> In the <code>alloca</code> loop, also count the worst-case realignment for over-aligned allocas, so these functions get the existing clean error:</p>
+<pre><code class="language-cpp">if (allocSize)
+  totalAllocas += allocSize-&gt;getFixedValue();
+if (ai-&gt;getAlign().value() &gt; 16)
+  totalAllocas += ai-&gt;getAlign().value();</code></pre>
+<p>16 is the RISC-V/AArch64 stack alignment. Supporting such frames for real would need the stack region sized from the actual frame, <code>MachineFrameInfo</code>'s stack size plus max alignment, rather than a constant.</p>
+<h3 id="bug-11">11. <code>shadowcallstack</code> functions are reported as target UB</h3>
+<p><strong>Status.</strong> Present on <code>arm-tv-fuzzing</code>. It accounts for the unconfirmed <code>shadowcallstack</code> hit from the 8-hour run, one candidate in the 2026-10-08 run, and several of the seeds that fail unmutated (<code>shadowcallstack/f3..f5</code>, <code>shadow-stack-frame-opts/*</code>).</p>
+<p><strong>Description.</strong> With <code>shadowcallstack</code>, llc saves <code>ra</code> to the shadow stack through <code>gp</code>: <code>addi gp, gp, 8; sd ra, -8(gp)</code>. The lifter treats <code>gp</code> as an arbitrary incoming value, so the store goes through a pointer to no known block, and Alive2 calls the whole target UB.</p>
+<p><strong>Repro.</strong> <code>tools/shadowcallstack.ll</code>:</p>
+<pre><code class="language-llvm">declare void @foo()
+define void @f() shadowcallstack {
+  call void @foo()
+  ret void
+}</code></pre>
+<p>Result: <code>ERROR: Source is more defined than target</code>.</p>
+<p><strong>Suggested fix.</strong> Model <code>gp</code> on entry as a pointer into a dedicated shadow-stack block, the way <code>sp</code> points into the stack block, when the function has <code>shadowcallstack</code>. Or reject such functions as unsupported. Until then, mkseeds.py could drop seeds with <code>shadowcallstack</code>.</p>
+<h3 id="bug-12">12. Two assertion failures in <code>ir/memory.cpp</code> on lifted code</h3>
+<p><strong>Status.</strong> Present on <code>arm-tv-fuzzing</code>. Both crash backend-tv only. <code>alive-tv</code> on the same function, in IR or asm mode, verifies. Found by the 2026-10-08 run (6 and 1 hits).</p>
+<p>**<code>Memory::setState</code>, <code>st.non_local_block_val.size() &gt;= 1</code>.** An indirect call through a GEP of <code>poison</code>. <code>tools/btv-assert-indirect-call.ll</code>:</p>
+<pre><code class="language-llvm">define half @f() {
+SW_C:
+  %G = getelementptr i3, ptr poison, i128 0
+  %call = tail call half %G(half 0.000000e+00) #0
+  ret half %call
+}
+attributes #0 = { memory(none) }</code></pre>
+<p>**<code>Memory::blockValRefined</code>, <code>(is_fn1 == 1 &amp;&amp; is_fn2 == 2) || ...</code>.** Two <code>memory(read)</code> calls around a global copy. <code>tools/btv-assert-two-calls.ll</code>:</p>
+<pre><code class="language-llvm">@G = external global i64
+@G.1 = external global i64
+declare i32 @bcmp() #0
+define i32 @f() {
+entry:
+  %bcmp = call i32 @bcmp()
+  %LGV = load i64, ptr @G, align 4
+  store i64 %LGV, ptr @G.1, align 4
+  %C1 = call i32 @bcmp()
+  ret i32 %C1
+}
+attributes #0 = { memory(read) }</code></pre>
+<p><strong>Suggested fix (direction).</strong> Both sit in the call-state / function-block bookkeeping, and the lifted target is what differs from the IR-mode case. Compare the lifted IR (<code>--save-lifted-ir</code>) with the source to see which call attribute or memory shape the lifter produces that IR never does.</p>
+<hr>
+<h2>llubi (<code>llvm/llvm-project</code>, <code>llvm/tools/llubi</code>)</h2>
+<h3 id="bug-8">8. llubi flushes denormal <em>inputs</em> at random</h3>
+<p>Suggested GitHub issue title: **[llubi] Denormal input flushing under <code>denormal_fpenv</code> is non-deterministic, but LangRef makes it mandatory**</p>
+<p><strong>Status.</strong> Present at <a href="https://github.com/llvm/llvm-project/commit/5c1c22673ce6f981a0f399409134576caaf24f87"><code>5c1c22673ce6</code></a>.</p>
+<p><strong>Description.</strong> <code>handleDenormal</code> (<code>llvm/tools/llubi/lib/Interpreter.cpp:159</code>) does this:</p>
+<pre><code class="language-cpp">if (IsInput) {
+  // Non-deterministically choose between flushing or preserving the
+  // denormal value.
+  if (Ctx.getRandomBool())
+    return Val;
+}</code></pre>
+<p>Inputs are flushed at random, and outputs always. LangRef has it the other way round:</p>
+<ul><li>For inputs: "a floating-point operation <strong>must</strong> treat any input denormal value as zero".</li><li>For outputs: "It is not mandated that flushing to zero occurs".</li></ul>
+<p>So llubi can report a value that no conforming execution produces, and it can never produce a legal unflushed output. This matters when llubi is the oracle: for <code>bugs/dag-constfold-denormal</code>, the answer depends on <code>--seed</code>.</p>
+<p><strong>Repro.</strong> <code>tools/llubi-denormal-inputs.ll</code> computes <code>fadd f0x80800000, f0x00400000</code> under <code>denormal_fpenv(ieee|positivezero)</code>:</p>
+<pre><code class="nohighlight">for s in $(seq 1 12); do llubi --seed=$s llubi-denormal-inputs.ll; done</code></pre>
+<p>Seeds 3, 4, 7, 8, 9 and 11 print <code>80400000</code>. The only correct value is <code>80800000</code>, which the other six seeds print.</p>
+<p><strong>Suggested fix.</strong> Swap the non-determinism: always flush inputs when the input mode is <code>preservesign</code>/<code>positivezero</code>, and choose at random whether to flush a denormal output.</p>
+<hr>
+<h2>Checked and not counted as tool bugs</h2>
+<ul><li>**<code>ret float poison</code> NaN-box assertion.** This was an LLVM RISC-V miscompile, fixed upstream by <a href="https://github.com/llvm/llvm-project/pull/225567">#225567</a>. backend-tv's assertion was correct.</li><li>**Recursive calls reported as <code>function did not return</code>.** This is a modelling limit in Alive2. <code>llvm-ir-mutator --alive2-safe</code> now breaks recursion, and seeds with recursion are skipped.</li><li>**<code>SMT Error: smt tactic failed ... (incomplete quantifiers)</code>.** This is the solver giving up, not a wrong verdict.</li><li>**<code>musttail</code> calls returning <code>i128</code> give "Target's return value is more undefined"** (14 hits in the 8-hour run). This was a mutator artifact: its recursion breaker skipped <code>musttail</code> calls, and FuzzMutate rewires the callee of <code>musttail-indirect-args</code> seeds into a self-call. Fixed in llvm-ir-mutator <a href="https://github.com/MitchBriles/llvm-ir-mutator/commit/ec0eb91fef9fd7f02ac1b9952bc53fe6435b0d1f"><code>ec0eb91</code></a>.</li><li>**The 40 <code>denormal_fpenv</code> failures in <code>regehr-bugs/</code>.** These are correct verdicts: LLVM bugs in <a href="BUGS"><code>REPORTS.md</code></a>, exposed by <a href="https://github.com/AliveToolkit/alive2/pull/1350">alive2#1350</a> making input flushing mandatory. The only tool interference is <a href="#bug-7">#7</a>, and the llubi seed dependence in <a href="#bug-8">#8</a>.</li></ul>
+<h2>Not yet confirmed</h2>
+<ul><li><code>SMT Error: bit-vector size must be greater than zero</code>: 50 hits in the 5-hour run and 57 in the 2026-10-08 run. The ohm representative (an <code>fptosi half</code> to <code>i1</code>) verifies locally with the same build, and so do minimal <code>fptosi</code>/<code>fptoui</code> to <code>i1</code> cases. It may depend on load or timing on ohm.</li><li><code>ERROR: Precondition is always false</code> (2 hits): a <code>memcmp</code> of 4 GiB, which is UB for every input. Not a tool bug.</li></ul>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/llvm.min.js"></script>
+<script>
+  hljs.registerLanguage("riscv", () => ({
+    name: "RISC-V",
+    contains: [
+      { scope: "comment", begin: /#/, end: /$/ },
+      { scope: "title", begin: /^\s*[\w.]+:/ },
+      { scope: "keyword", begin: /(?<=^\s*(?:[\w.]+:\s*)?)[a-z][a-z0-9]*(?:\.[a-z0-9]+)*\b/ },
+      { scope: "variable", begin: /\b(?:zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[01]|a[0-7]|f[tsa]\d+|x\d+|v\d+)\b/ },
+      { scope: "number", begin: /-?\b(?:0x[0-9a-f]+|\d+(?:\.\d+)?)\b/ },
+    ],
+  }));
+  hljs.highlightAll();
+</script>
+</body>
+</html>
